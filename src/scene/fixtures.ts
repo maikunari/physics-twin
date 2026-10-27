@@ -13,7 +13,7 @@ export const FIXTURE_SCENE: GroundedScene = {
   ramp: { top: { x: 80, y: 360 }, bottom: { x: 320, y: 600 } },
   table: { left: { x: 40, y: 640 }, right: { x: 960, y: 640 } },
   blocks: [{ id: 'blue', label: 'blue block', box: { x_min: 780, y_min: 560, x_max: 830, y_max: 640 } }],
-  ball: { center: { x: 100, y: 325 }, radius: 10 },
+  ball: { center: { x: 105, y: 364 }, radius: 10 },
   scaleMarkers: [
     { x: 400, y: 660 },
     { x: 700, y: 660 },
