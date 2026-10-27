@@ -13,6 +13,7 @@ import { createReadStream, existsSync, readFileSync, writeFileSync } from 'node:
 import path from 'node:path';
 import { buildObjectPrompt, parseVideoStream, type PromptBox } from '@meta-sam/parser';
 import type { ResponseCreateParamsStreaming } from 'openai/resources/responses/responses';
+import { MAX_CLIP_BYTES } from '../src/machines/appFlow';
 import { ballPixelBox, gridBoxToPixelBox, type ImageSize } from '../src/scene/calibration';
 import { groundedSceneSchema } from '../src/scene/schema';
 import { goNoGo, summariseTracks, type PromptedObject } from './lib/samSummary';
@@ -26,8 +27,6 @@ import {
   probeMedia,
   requireApiKey,
 } from './lib/meta';
-
-const MAX_CLIP_BYTES = 50 * 1024 * 1024;
 
 interface Prompted extends PromptedObject {
   readonly box: PromptBox;
