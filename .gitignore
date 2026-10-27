@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.vercel/
+.claude/settings.local.json
+# Test clips and smoke output stay local
+clips/
+smoke-out/
