@@ -6,8 +6,8 @@ const REST_POINTS = 5;
 const REST_CM = 0.3;
 /** The ball is certainly rolling once it is this far from rest, cm. */
 const MOVING_CM = 1;
-/** Fit the start of the motion over this much travel, while acceleration is still near constant, cm. */
-const FIT_UNTIL_CM = 8;
+/** By default the start of the motion is fitted over this much travel, cm. */
+const DEFAULT_FIT_UNTIL_CM = 8;
 const MIN_FIT_POINTS = 4;
 
 const median = (values: readonly number[]) => {
@@ -23,10 +23,14 @@ const median = (values: readonly number[]) => {
  *
  * From rest under constant acceleration, distance travelled is ½·a·(t − t0)²,
  * so √distance is a straight line in t that crosses zero at t0. The line is
- * fitted over the first few centimetres of motion. Returns null when the
- * ball never clearly moves.
+ * fitted over the first `fitUntilCm` of travel, which must stay on the ramp,
+ * where the acceleration is constant: the longer the run, the less tracker
+ * noise moves t0. Returns null when the ball never clearly moves.
  */
-export function detectReleaseTime(points: readonly TrajectoryPoint[]): number | null {
+export function detectReleaseTime(
+  points: readonly TrajectoryPoint[],
+  fitUntilCm: number = DEFAULT_FIT_UNTIL_CM,
+): number | null {
   const head = points.slice(0, REST_POINTS);
   if (head.length === 0) return null;
   const rest = { x: median(head.map((p) => p.x)), y: median(head.map((p) => p.y)) };
@@ -38,7 +42,7 @@ export function detectReleaseTime(points: readonly TrajectoryPoint[]): number | 
   let first = moving;
   while (first > 0 && (dist[first - 1] ?? 0) > REST_CM) first--;
   let last = moving;
-  while (last + 1 < points.length && (dist[last + 1] ?? Infinity) <= FIT_UNTIL_CM) last++;
+  while (last + 1 < points.length && (dist[last + 1] ?? Infinity) <= fitUntilCm) last++;
 
   const fit = points.slice(first, last + 1).map((p, i) => ({ t: p.t, r: Math.sqrt(dist[first + i] ?? 0) }));
   const lastRest = points[first - 1]?.t ?? points[0]?.t ?? 0;
