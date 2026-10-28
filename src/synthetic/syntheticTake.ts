@@ -13,7 +13,7 @@ import type { GroundedScene } from '../scene/schema';
 import type { SimParams } from '../sim/params';
 import { createPrng } from '../sim/prng';
 import { simulateScene, type Trajectory, type WorldOptions } from '../sim/sceneWorld';
-import { formatSamFrameLine, type SamWireRecord, type TrackedObject } from '../tracks/samText';
+import { formatSamFrameLine, trackedObjectsFor, type SamWireRecord, type TrackedObject } from '../tracks/samText';
 
 export interface SyntheticTakeOptions extends Pick<WorldOptions, 'ballKind'> {
   /** How long the ball is simulated after release; the clip is releaseDelaySec longer. */
@@ -40,7 +40,7 @@ export interface SyntheticTake {
   readonly truth: Trajectory;
   /** The clip frame where the ball is let go: truth sample i is clip frame releaseFrame + i. */
   readonly releaseFrame: number;
-  /** Objects as SAM would have been prompted: the ball is 1, blocks follow in scene order (as in smoke-sam.ts). */
+  /** Objects as SAM would have been prompted (`trackedObjectsFor`). */
   readonly objects: readonly TrackedObject[];
   /** SAM 3.1 video output for the take, in the wire grammar `sam-raw.txt` holds. */
   readonly samText: string;
@@ -95,14 +95,11 @@ export function makeSyntheticTake(
   const lowConfidenceRate = options.lowConfidenceRate ?? 0;
   const r = ballRadiusPx(scene, imageSize);
 
-  const objects: TrackedObject[] = [
-    { id: '1', kind: 'ball', label: 'ball' },
-    ...scene.blocks.map((b, i) => ({ id: String(i + 2), kind: 'block' as const, label: b.label })),
-  ];
+  const objects = trackedObjectsFor(scene);
   const blockBoxes = scene.blocks.map((b) => gridBoxToPixelBox(b.box, imageSize));
 
   const releaseFrame = Math.round((options.releaseDelaySec ?? 0) * fps);
-  const restPx = worldToPixel(calibration, world.ball.center);
+  const restPx = worldToPixel(calibration, truth.samples[0] ?? world.ball.center);
   const ballPx = [
     ...Array.from({ length: releaseFrame }, () => restPx),
     ...truth.samples.map((s) => worldToPixel(calibration, s)),

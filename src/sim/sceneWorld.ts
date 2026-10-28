@@ -90,10 +90,41 @@ function addSurface(world: RAPIER.World, a: Vec2, b: Vec2, friction: number): nu
     .handle;
 }
 
+/** A ball starting within this many radii of the ramp surface is taken to be resting on it. */
+const SETTLE_RADII = 1.5;
+
+/**
+ * Where the simulated ball starts. Muse Spark reads the ball on a 0–1000 grid,
+ * about 2 px per step at 1080p, so its centre is never exactly one radius off
+ * the ramp: a small gap would drop the ball for several milliseconds before
+ * it rolls, and an overlap would kick it off the surface. A ball that close
+ * to the ramp is moved along the ramp's normal to rest on it.
+ */
+export function ballStart(scene: WorldScene): Vec2 {
+  const { top, bottom } = scene.ramp;
+  const dx = bottom.x - top.x;
+  const dy = bottom.y - top.y;
+  const len = Math.hypot(dx, dy);
+  // Unit normal on the ramp's upper side.
+  let nx = -dy / len;
+  let ny = dx / len;
+  if (ny < 0) {
+    nx = -nx;
+    ny = -ny;
+  }
+  const c = scene.ball.center;
+  const along = ((c.x - top.x) * dx + (c.y - top.y) * dy) / len;
+  const height = (c.x - top.x) * nx + (c.y - top.y) * ny;
+  const r = scene.ball.radius;
+  if (along < 0 || along > len || Math.abs(height - r) > SETTLE_RADII * r) return c;
+  return { x: c.x + (r - height) * nx, y: c.y + (r - height) * ny };
+}
+
 /**
  * Builds the Rapier world for a scene: the ramp and table as fixed slabs, each
  * block as a fixed box on the table, and the ball as a dynamic body at its
- * frame-0 position with the initial speed and spin from `params`.
+ * frame-0 position (settled onto the ramp, see `ballStart`) with the initial
+ * speed and spin from `params`.
  *
  * Friction and restitution come from `params`: the ball's combine rules make
  * every contact use the surface's friction and the ball's restitution.
@@ -121,7 +152,7 @@ export function buildSceneWorld(scene: WorldScene, params: SimParams, options: W
 
   const down = { x: scene.ramp.bottom.x - scene.ramp.top.x, y: scene.ramp.bottom.y - scene.ramp.top.y };
   const downLen = Math.hypot(down.x, down.y);
-  const start = toM(scene.ball.center);
+  const start = toM(ballStart(scene));
   const v0 = params.v0 * M_PER_CM;
   const ball = world.createRigidBody(
     RAPIER.RigidBodyDesc.dynamic()

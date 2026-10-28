@@ -3,7 +3,7 @@ import { calibrate, toWorldScene, type WorldScene } from '../scene/calibration';
 import { FIXTURE_IMAGE_SIZE, FIXTURE_SCENE } from '../scene/fixtures';
 import { DEFAULT_SIM_PARAMS, type SimParams } from './params';
 import { createPrng } from './prng';
-import { buildSceneWorld, initRapier, simulateScene } from './sceneWorld';
+import { ballStart, buildSceneWorld, initRapier, simulateScene } from './sceneWorld';
 
 const scene = toWorldScene(FIXTURE_SCENE, calibrate(FIXTURE_SCENE, FIXTURE_IMAGE_SIZE));
 const G_CM = 981;
@@ -32,8 +32,7 @@ describe('buildSceneWorld', () => {
       expect(built.world.colliders.len()).toBe(2 + scene.blocks.length + 1);
       expect([...built.colliders.blocks.keys()]).toEqual(scene.blocks.map((b) => b.id));
       const start = built.ballSample(0);
-      expect(start.x).toBeCloseTo(scene.ball.center.x, 4);
-      expect(start.y).toBeCloseTo(scene.ball.center.y, 4);
+      expect(Math.hypot(start.x - scene.ball.center.x, start.y - scene.ball.center.y)).toBeLessThan(scene.ball.radius);
     } finally {
       built.free();
     }
@@ -61,6 +60,38 @@ describe('buildSceneWorld', () => {
     } finally {
       built.free();
     }
+  });
+});
+
+describe('ballStart', () => {
+  /** Signed distance of a point above the ramp line, cm. */
+  const heightAboveRamp = (p: { x: number; y: number }) => {
+    const { top, bottom } = scene.ramp;
+    const dx = bottom.x - top.x;
+    const dy = bottom.y - top.y;
+    return ((p.x - top.x) * -dy + (p.y - top.y) * dx) / Math.hypot(dx, dy) * Math.sign(dx);
+  };
+
+  it('settles a ball grounded slightly off the ramp onto its surface', () => {
+    expect(Math.abs(heightAboveRamp(scene.ball.center) - scene.ball.radius)).toBeGreaterThan(0.01);
+    expect(heightAboveRamp(ballStart(scene))).toBeCloseTo(scene.ball.radius, 9);
+    for (const dy of [-0.5, 0.5]) {
+      const nudged = { ...scene, ball: { ...scene.ball, center: { x: scene.ball.center.x, y: scene.ball.center.y + dy } } };
+      expect(heightAboveRamp(ballStart(nudged))).toBeCloseTo(scene.ball.radius, 9);
+    }
+  });
+
+  it('leaves a ball that is clearly not on the ramp where it is', () => {
+    const above = { ...scene, ball: { ...scene.ball, center: { x: 20, y: 60 } } };
+    expect(ballStart(above)).toEqual({ x: 20, y: 60 });
+    const beyond = { ...scene, ball: { ...scene.ball, center: { x: 100, y: 1.7 } } };
+    expect(ballStart(beyond)).toEqual({ x: 100, y: 1.7 });
+  });
+
+  it('is where the simulated ball starts', () => {
+    const { samples } = simulateScene(scene, DEFAULT_SIM_PARAMS, { durationSec: 0 });
+    expect(samples[0]!.x).toBeCloseTo(ballStart(scene).x, 4);
+    expect(samples[0]!.y).toBeCloseTo(ballStart(scene).y, 4);
   });
 });
 

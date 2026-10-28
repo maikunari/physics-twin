@@ -15,7 +15,7 @@ import { recoverMuAndRestitution } from './recover';
  *
  * Stated tolerance: |Δμ_ramp| ≤ 0.002 and |Δe| ≤ 0.05, on the 0–1.0 s fit
  * window with 0.7 px jitter, 5% lost frames and 3% low-confidence wrong boxes.
- * A scan of 6 truths × 5 noise seeds stayed within |Δμ| ≤ 0.001, |Δe| ≤ 0.037;
+ * A scan of 6 truths × 5 noise seeds stayed within |Δμ| ≤ 0.0003, |Δe| ≤ 0.025;
  * e is hardest at low values, where the bounce is small.
  */
 const TOLERANCE = { mu: 0.002, restitution: 0.05 };

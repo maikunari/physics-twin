@@ -4,12 +4,21 @@ import {
   type SegmentationRecord,
 } from '@meta-sam/parser';
 import type { PixelBox } from '../scene/calibration';
+import type { GroundedScene } from '../scene/schema';
 
 /** An object SAM was prompted with; its `id` is the object id SAM reports back. */
 export interface TrackedObject {
   readonly id: string;
   readonly kind: 'ball' | 'block';
   readonly label: string;
+}
+
+/** The objects SAM is prompted with for a scene: the ball is 1, blocks follow in scene order (as smoke-sam.ts prompts them). */
+export function trackedObjectsFor(scene: GroundedScene): TrackedObject[] {
+  return [
+    { id: '1', kind: 'ball', label: 'ball' },
+    ...scene.blocks.map((b, i) => ({ id: String(i + 2), kind: 'block' as const, label: b.label })),
+  ];
 }
 
 export interface ParsedSamText {
