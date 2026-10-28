@@ -16,6 +16,7 @@ import { simulateScene, type Trajectory, type WorldOptions } from '../sim/sceneW
 import { formatSamFrameLine, type SamWireRecord, type TrackedObject } from '../tracks/samText';
 
 export interface SyntheticTakeOptions extends Pick<WorldOptions, 'ballKind'> {
+  /** How long the ball is simulated after release; the clip is releaseDelaySec longer. */
   readonly durationSec: number;
   readonly fps?: number;
   readonly markerDistanceCm?: number;
@@ -27,14 +28,18 @@ export interface SyntheticTakeOptions extends Pick<WorldOptions, 'ballKind'> {
   readonly dropRate?: number;
   /** Share of frames where SAM reports a wrong box at low confidence. */
   readonly lowConfidenceRate?: number;
+  /** The ball sits at the release mark this long before it is let go (the filming guide waits 1 s). */
+  readonly releaseDelaySec?: number;
 }
 
 /** A take generated from the simulation, in the same shapes a real clip produces. */
 export interface SyntheticTake {
   readonly calibration: Calibration;
   readonly world: WorldScene;
-  /** The ground truth the measurement was made from, in cm. */
+  /** The ground truth the measurement was made from, in cm; its t = 0 is the release. */
   readonly truth: Trajectory;
+  /** The clip frame where the ball is let go: truth sample i is clip frame releaseFrame + i. */
+  readonly releaseFrame: number;
   /** Objects as SAM would have been prompted: the ball is 1, blocks follow in scene order (as in smoke-sam.ts). */
   readonly objects: readonly TrackedObject[];
   /** SAM 3.1 video output for the take, in the wire grammar `sam-raw.txt` holds. */
@@ -96,7 +101,12 @@ export function makeSyntheticTake(
   ];
   const blockBoxes = scene.blocks.map((b) => gridBoxToPixelBox(b.box, imageSize));
 
-  const ballPx = truth.samples.map((s) => worldToPixel(calibration, s));
+  const releaseFrame = Math.round((options.releaseDelaySec ?? 0) * fps);
+  const restPx = worldToPixel(calibration, world.ball.center);
+  const ballPx = [
+    ...Array.from({ length: releaseFrame }, () => restPx),
+    ...truth.samples.map((s) => worldToPixel(calibration, s)),
+  ];
   const lines = ballPx.map((p, frame) => {
     const records: SamWireRecord[] = [];
     const roll = rand();
@@ -119,6 +129,7 @@ export function makeSyntheticTake(
     calibration,
     world,
     truth,
+    releaseFrame,
     objects,
     samText: lines.join(''),
     ballPx,
