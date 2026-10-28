@@ -1,8 +1,8 @@
 import { useEffect, useReducer } from 'react';
-import { toWorldScene } from './scene/calibration';
+import { calibrate, toWorldScene } from './scene/calibration';
 import { FIXTURE_IMAGE_SIZE, FIXTURE_SCENE } from './scene/fixtures';
 import { DEFAULT_SIM_PARAMS } from './sim/params';
-import { initRapier, simulateRamp } from './sim/rampSim';
+import { initRapier, simulateScene } from './sim/sceneWorld';
 import { SimCanvas } from './ui/SimCanvas';
 import { initialSimPageState, simPageReducer } from './ui/simPageState';
 
@@ -14,8 +14,8 @@ export function App() {
     let cancelled = false;
     initRapier()
       .then(() => {
-        const scene = toWorldScene(FIXTURE_SCENE, FIXTURE_IMAGE_SIZE);
-        const trajectory = simulateRamp(scene, DEFAULT_SIM_PARAMS, { durationSec: 2.5 });
+        const scene = toWorldScene(FIXTURE_SCENE, calibrate(FIXTURE_SCENE, FIXTURE_IMAGE_SIZE));
+        const trajectory = simulateScene(scene, DEFAULT_SIM_PARAMS, { durationSec: 2.5 });
         if (!cancelled) dispatch({ type: 'SIMULATED', scene, trajectory });
       })
       .catch((err: unknown) => {

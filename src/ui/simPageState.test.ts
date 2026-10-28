@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { toWorldScene } from '../scene/calibration';
+import { calibrate, toWorldScene } from '../scene/calibration';
 import { FIXTURE_IMAGE_SIZE, FIXTURE_SCENE } from '../scene/fixtures';
 import { initialSimPageState, simPageReducer, type SimPageEvent } from './simPageState';
 
-const scene = toWorldScene(FIXTURE_SCENE, FIXTURE_IMAGE_SIZE);
+const scene = toWorldScene(FIXTURE_SCENE, calibrate(FIXTURE_SCENE, FIXTURE_IMAGE_SIZE));
 const simulated: SimPageEvent = { type: 'SIMULATED', scene, trajectory: { dt: 1 / 240, samples: [] } };
 const failed: SimPageEvent = { type: 'FAILED', message: 'WASM failed to load' };
 

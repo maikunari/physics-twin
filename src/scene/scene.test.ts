@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { groundedSceneJsonSchema, groundedSceneSchema, hasUsableScale } from './schema';
-import { ballPixelBox, gridToPixel, toWorldScene } from './calibration';
+import {
+  ballPixelBox,
+  calibrate,
+  gridToPixel,
+  pixelToWorld,
+  rollRadians,
+  toWorldScene,
+  worldToPixel,
+  type Vec2,
+} from './calibration';
 import { FIXTURE_IMAGE_SIZE, FIXTURE_SCENE } from './fixtures';
 
 const clone = () => structuredClone(FIXTURE_SCENE);
@@ -74,13 +83,68 @@ describe('calibration', () => {
   });
 
   it('scales by the tape marks, puts the origin at the table left end and flips y', () => {
-    const w = toWorldScene(FIXTURE_SCENE, FIXTURE_IMAGE_SIZE, 0.5);
-    // Markers are 300 grid units = 576 px apart for 0.5 m.
-    expect(w.pixelsPerMetre).toBeCloseTo(1152);
+    const cal = calibrate(FIXTURE_SCENE, FIXTURE_IMAGE_SIZE, 50);
+    // Markers are 300 grid units = 576 px apart for 50 cm.
+    expect(cal.pixelsPerCm).toBeCloseTo(11.52);
+    expect(rollRadians(cal)).toBeCloseTo(0);
+    const w = toWorldScene(FIXTURE_SCENE, cal);
     expect(w.table.left).toEqual({ x: 0, y: 0 });
     expect(w.table.right.y).toBeCloseTo(0);
+    expect(w.table.right.x).toBeCloseTo((920 * 1.92) / 11.52);
     expect(w.ramp.top.y).toBeGreaterThan(w.ramp.bottom.y);
-    expect(w.ball.radius).toBeCloseTo((10 * 1.92) / 1152);
-    expect(w.blocks[0]!.halfExtents.x).toBeGreaterThan(0);
+    expect(w.ball.radius).toBeCloseTo((10 * 1.92) / 11.52);
+    expect(w.blocks[0]!.halfExtents).toEqual({ x: expect.closeTo((25 * 1.92) / 11.52), y: expect.closeTo((40 * 1.08) / 11.52) });
+  });
+
+  it('round-trips pixels through the world frame', () => {
+    const cal = calibrate(FIXTURE_SCENE, FIXTURE_IMAGE_SIZE);
+    for (const p of [{ x: 0, y: 0 }, { x: 1919, y: 1079 }, { x: 640, y: 300 }]) {
+      const back = worldToPixel(cal, pixelToWorld(cal, p));
+      expect(back.x).toBeCloseTo(p.x, 9);
+      expect(back.y).toBeCloseTo(p.y, 9);
+    }
+  });
+
+  it('rejects a zero marker distance and a zero-length table', () => {
+    expect(() => calibrate(FIXTURE_SCENE, FIXTURE_IMAGE_SIZE, 0)).toThrow(/usable scale/);
+    const s = clone();
+    s.table.right = { ...s.table.left };
+    expect(() => calibrate(s, FIXTURE_IMAGE_SIZE)).toThrow(/table line/);
+  });
+
+  it('corrects camera roll: a rolled frame gives the same world scene', () => {
+    const roll = (4 * Math.PI) / 180;
+    const pivot = { x: 960, y: 540 };
+    const { width, height } = FIXTURE_IMAGE_SIZE;
+    // Rotate a grid point about the frame centre in pixel space, as a rolled camera would see it.
+    const rolled = (g: Vec2): Vec2 => {
+      const p = gridToPixel(g, FIXTURE_IMAGE_SIZE);
+      const dx = p.x - pivot.x;
+      const dy = p.y - pivot.y;
+      return {
+        x: ((pivot.x + dx * Math.cos(roll) - dy * Math.sin(roll)) * 1000) / width,
+        y: ((pivot.y + dx * Math.sin(roll) + dy * Math.cos(roll)) * 1000) / height,
+      };
+    };
+    const s = clone();
+    s.ramp = { top: rolled(s.ramp.top), bottom: rolled(s.ramp.bottom) };
+    s.table = { left: rolled(s.table.left), right: rolled(s.table.right) };
+    s.ball.center = rolled(s.ball.center);
+    s.scaleMarkers = [rolled(s.scaleMarkers[0]!), rolled(s.scaleMarkers[1]!)];
+
+    const cal = calibrate(s, FIXTURE_IMAGE_SIZE);
+    expect(rollRadians(cal)).toBeCloseTo(roll, 9);
+    expect(cal.pixelsPerCm).toBeCloseTo(11.52, 9);
+    const level = toWorldScene(FIXTURE_SCENE, calibrate(FIXTURE_SCENE, FIXTURE_IMAGE_SIZE));
+    const fixed = toWorldScene(s, cal);
+    for (const [a, b] of [
+      [fixed.ramp.top, level.ramp.top],
+      [fixed.ramp.bottom, level.ramp.bottom],
+      [fixed.table.right, level.table.right],
+      [fixed.ball.center, level.ball.center],
+    ] as const) {
+      expect(a.x).toBeCloseTo(b.x, 6);
+      expect(a.y).toBeCloseTo(b.y, 6);
+    }
   });
 });

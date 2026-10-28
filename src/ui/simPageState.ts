@@ -1,5 +1,5 @@
 import type { WorldScene } from '../scene/calibration';
-import type { Trajectory } from '../sim/rampSim';
+import type { Trajectory } from '../sim/sceneWorld';
 
 /** The day-1 sim page: loading Rapier and running the scene, then showing it or the error. */
 export type SimPageState =
