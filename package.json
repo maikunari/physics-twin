@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke:sam": "tsx scripts/smoke-sam.ts",
-    "smoke:spark": "tsx scripts/smoke-spark.ts"
+    "smoke:spark": "tsx scripts/smoke-spark.ts",
+    "synthetic": "tsx scripts/make-synthetic-clip.ts"
   },
   "dependencies": {
     "@dimforge/rapier2d-compat": "^0.21.0",
