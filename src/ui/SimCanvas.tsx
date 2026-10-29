@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { Vec2, WorldScene } from '../scene/calibration';
-import type { Trajectory } from '../sim/rampSim';
+import type { Trajectory } from '../sim/sceneWorld';
 
 interface Props {
   readonly scene: WorldScene;

@@ -12,7 +12,15 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { ResponseCreateParamsNonStreaming } from 'openai/resources/responses/responses';
-import { ballPixelBox, gridBoxToPixelBox, gridToPixel, toWorldScene, type PixelBox } from '../src/scene/calibration';
+import {
+  ballPixelBox,
+  calibrate,
+  gridBoxToPixelBox,
+  gridToPixel,
+  rollRadians,
+  toWorldScene,
+  type PixelBox,
+} from '../src/scene/calibration';
 import { GROUNDING_PROMPT, groundingTextFormat } from '../src/scene/groundingPrompt';
 import { groundedSceneSchema, hasUsableScale, type GroundedScene } from '../src/scene/schema';
 import {
@@ -106,7 +114,7 @@ async function main() {
   }
   const scene = parsed.data;
   const imageSize = { width: size.width, height: size.height };
-  writeFileSync(path.join(out, 'scene.json'), JSON.stringify({ source: input, imageSize, scene }, null, 2));
+  writeFileSync(path.join(out, 'scene.json'), JSON.stringify({ source: input, imageSize, markerDistanceCm: markerCm, scene }, null, 2));
 
   const overlay = path.join(out, 'scene-overlay.jpg');
   drawOverlay(frame, overlay, scene, imageSize);
@@ -118,11 +126,13 @@ async function main() {
     console.log('scale: NOT FOUND (markers missing or too close) ✗');
     process.exitCode = 1;
   } else {
-    const world = toWorldScene(scene, imageSize, markerCm / 100);
-    console.log(`scale: ${(world.pixelsPerMetre / 100).toFixed(2)} px/cm from markers ${markerCm} cm apart ✓`);
+    const cal = calibrate(scene, imageSize, markerCm);
+    const world = toWorldScene(scene, cal);
+    console.log(`scale: ${cal.pixelsPerCm.toFixed(2)} px/cm from markers ${markerCm} cm apart ✓`);
+    console.log(`camera roll from the table line: ${((rollRadians(cal) * 180) / Math.PI).toFixed(2)}°`);
     const rise = world.ramp.top.y - world.ramp.bottom.y;
     const run = world.ramp.bottom.x - world.ramp.top.x;
-    console.log(`ramp: ${((Math.atan2(rise, run) * 180) / Math.PI).toFixed(1)}° from horizontal, ball radius ${(world.ball.radius * 100).toFixed(1)} cm`);
+    console.log(`ramp: ${((Math.atan2(rise, run) * 180) / Math.PI).toFixed(1)}° from horizontal, ball radius ${world.ball.radius.toFixed(1)} cm`);
   }
   console.log(`overlay to check by eye: ${overlay} (orange ball, blue blocks, red ramp ends, green table ends, magenta tape marks)`);
 }
