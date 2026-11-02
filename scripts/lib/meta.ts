@@ -33,9 +33,17 @@ export function metaClient(apiKey: string): OpenAI {
   return new OpenAI({ apiKey, baseURL: BASE_URL_OVERRIDE || META_BASE_URL });
 }
 
-export function ensureOutDir(): string {
-  mkdirSync(SMOKE_OUT_DIR, { recursive: true });
-  return SMOKE_OUT_DIR;
+/** Creates the output folder (smoke-out/ unless a script was given `--out`) and returns its absolute path. */
+export function ensureOutDir(dir: string = SMOKE_OUT_DIR): string {
+  const out = path.resolve(dir);
+  mkdirSync(out, { recursive: true });
+  return out;
+}
+
+/** A path for the log: relative to where the script was run when it is inside it, else absolute. */
+export function shown(file: string): string {
+  const relative = path.relative(process.cwd(), file);
+  return relative.startsWith('..') ? path.resolve(file) : relative || '.';
 }
 
 export function fail(message: string): never {

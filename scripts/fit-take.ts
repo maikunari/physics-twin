@@ -12,14 +12,13 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createFitAgent } from '../src/agent/fitAgent';
-import type { SparkTransport } from '../src/agent/sparkWire';
 import { makeFitProblem, muRampRollingThreshold } from '../src/fit/fitter';
 import { describeShift, runFitSession } from '../src/fit/session';
 import { fitRequestForOverlay, loadOverlayData } from '../src/overlay/overlayData';
 import { DEFAULT_SIM_PARAMS } from '../src/sim/params';
 import { initRapier } from '../src/sim/sceneWorld';
 import { META_BASE_URL, ensureOutDir, fail, parseArgs } from './lib/meta';
-import { proxySparkRequest } from './lib/sparkProxy';
+import { scriptSparkTransport } from './lib/sparkProxy';
 
 async function main() {
   const { positional, flags } = parseArgs(process.argv.slice(2), ['no-agent']);
@@ -32,15 +31,7 @@ async function main() {
   const apiKey = process.env.MODEL_API_KEY?.trim();
   const useAgent = !flags.has('no-agent') && Boolean(apiKey);
   if (!flags.has('no-agent') && !apiKey) console.log('MODEL_API_KEY not set: fitting with Nelder–Mead alone.');
-  // The same validated request shape and forwarding as the dev server's /api/spark.
-  const transport: SparkTransport = async (request) => {
-    const reply = await proxySparkRequest(JSON.stringify(request), {
-      apiKey,
-      baseUrl: process.env.META_API_BASE_URL?.trim() || META_BASE_URL,
-    });
-    if (reply.status !== 200) throw new Error(`Meta Model API answered ${reply.status}: ${reply.body.slice(0, 200)}`);
-    return JSON.parse(reply.body) as unknown;
-  };
+  const transport = scriptSparkTransport({ apiKey, baseUrl: process.env.META_API_BASE_URL?.trim() || META_BASE_URL });
 
   await initRapier();
   const data = loadOverlayData({

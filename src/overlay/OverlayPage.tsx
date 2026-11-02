@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState, type FormEvent } from 'react';
 import { muRampRollingThreshold } from '../fit/fitter';
 import type { FitWorkerMessage } from '../fit/fitWorkerProtocol';
 import { DEFAULT_WINDOW_END_SEC } from '../fit/recover';
@@ -8,9 +8,15 @@ import { rollRadians } from '../scene/calibration';
 import { DEFAULT_SIM_PARAMS, type SimParams } from '../sim/params';
 import { initRapier } from '../sim/sceneWorld';
 import { DEFAULT_FPS } from '../tracks/trajectories';
-import { ballTrajectory, fitRequestForOverlay, loadOverlayData, withParams, type OverlayData } from './overlayData';
+import { commitPrediction } from '../predict/commitment';
+import { makePrediction } from '../predict/prediction';
+import { scoreReveal, type RevealOutcome } from '../predict/reveal';
+import type { PredictOverlay } from './drawOverlay';
+import { ballTrajectory, fitRequestForOverlay, loadOverlayData, predictionInputs, withParams, type OverlayData } from './overlayData';
 import { initialOverlayPageState, overlayPageReducer, type FitReport } from './overlayPageState';
 import { OverlayPlayer } from './OverlayPlayer';
+import { PredictPanel } from './PredictPanel';
+import { usePredictFlow } from './usePredictFlow';
 
 const EDITABLE: readonly { key: 'muRamp' | 'muTable' | 'restitution'; label: string }[] = [
   { key: 'muRamp', label: 'μ ramp' },
@@ -114,6 +120,18 @@ export function OverlayPage() {
   const [useAgent, setUseAgent] = useState(true);
   const videoUrl = state.status === 'ready' || state.status === 'fitting' ? state.videoUrl : null;
   const urlRef = useRef<string | null>(null);
+  const [take, setTake] = useState('take');
+  const predict = usePredictFlow();
+  const [pendingOutcome, setPendingOutcome] = useState<RevealOutcome | null>(null);
+  const fitReport = state.status === 'ready' ? state.fit : null;
+  const predictState = predict.snapshot.value;
+  const { prediction, commitment, outcome } = predict.snapshot.context;
+
+  // A new fit (or none) unfreezes: any prediction made from the old one is dropped.
+  const sendPredict = predict.send;
+  useEffect(() => {
+    sendPredict({ type: 'RESET' });
+  }, [fitReport, sendPredict]);
 
   // Free the previous clip's object URL whenever a new one replaces it, and on unmount.
   useEffect(() => {
@@ -151,6 +169,7 @@ export function OverlayPage() {
             log,
             rmsCm: history.map((h) => h.rmsCm),
             muRampLowerBound: best.params.muRamp >= 0.9 * threshold ? threshold : null,
+            detectedReleaseSec: fittingData.releaseSec,
           },
         });
       }
@@ -188,11 +207,67 @@ export function OverlayPage() {
         params,
         ...(markerDistanceCm ? { markerDistanceCm } : {}),
       });
+      setTake(clip.name.replace(/\.[^.]+$/, '') || 'take');
       dispatch({ type: 'LOADED', videoUrl: URL.createObjectURL(clip), data });
     } catch (err) {
       dispatch({ type: 'FAILED', message: message(err) });
     }
   }
+
+  async function onPredict() {
+    if (state.status !== 'ready' || !state.fit) return;
+    const { data, fit } = state;
+    predict.send({ type: 'PREDICT' });
+    // Let "predicting" paint before the ensemble runs on this thread.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    try {
+      // The fit window only: the prediction cannot read the track past the freeze.
+      const { problem, clipEndSec } = predictionInputs(data, fit.detectedReleaseSec);
+      const made = makePrediction(problem, fit.best, { clipEndSec });
+      const committed = await commitPrediction(take, made);
+      console.info(`[physics-twin] ${take}: prediction committed, sha256 ${committed.hash}`, committed.payload);
+      predict.send({ type: 'PREDICTION_READY', prediction: made, commitment: committed });
+    } catch (err) {
+      predict.send({ type: 'PREDICTION_FAILED', error: message(err) });
+    }
+  }
+
+  function onReveal() {
+    if (state.status !== 'ready' || !state.fit || !prediction || !commitment) return;
+    const { measured } = predictionInputs(state.data, state.fit.detectedReleaseSec);
+    setPendingOutcome(
+      scoreReveal({
+        prediction,
+        commitment,
+        measured,
+        world: state.data.world,
+        pixelsPerCm: state.data.calibration.pixelsPerCm,
+        fps: state.data.fps,
+      }),
+    );
+    predict.send({ type: 'REVEAL' });
+  }
+
+  // The reveal is done once the clip has played to the prediction's horizon.
+  const revealEndSec =
+    predictState === 'revealing' && fitReport && prediction ? fitReport.detectedReleaseSec + prediction.horizonEndSec : null;
+  const onTime = useCallback(
+    (t: number) => {
+      if (revealEndSec !== null && pendingOutcome && t >= revealEndSec - 1e-3) sendPredict({ type: 'REVEAL_DONE', outcome: pendingOutcome });
+    },
+    [revealEndSec, pendingOutcome, sendPredict],
+  );
+
+  const showPrediction = (predictState === 'committed' || predictState === 'revealing' || predictState === 'result') && prediction && commitment && fitReport;
+  const predictOverlay: PredictOverlay | null = showPrediction
+    ? {
+        clockZeroSec: fitReport.detectedReleaseSec,
+        prediction,
+        commitmentShort: commitment.short,
+        revealed: predictState !== 'committed',
+        outcome: outcome ?? pendingOutcome,
+      }
+    : null;
 
   function onParam(key: (typeof EDITABLE)[number]['key'], value: number) {
     if (!Number.isFinite(value)) return;
@@ -271,7 +346,19 @@ export function OverlayPage() {
           )}
           {state.status === 'ready' && state.fitError && <p role="alert">Fit failed: {state.fitError}</p>}
           {state.status === 'ready' && state.fit && <FitReportView report={state.fit} />}
-          <OverlayPlayer videoUrl={state.videoUrl} data={state.data} />
+          {state.status === 'ready' && state.fit && (
+            <PredictPanel
+              state={predictState}
+              prediction={prediction}
+              commitment={commitment}
+              outcome={outcome ?? pendingOutcome}
+              error={predict.snapshot.context.error}
+              onPredict={() => void onPredict()}
+              onReveal={onReveal}
+              send={predict.send}
+            />
+          )}
+          <OverlayPlayer videoUrl={state.videoUrl} data={state.data} predict={predictOverlay} onTime={onTime} />
         </>
       )}
     </section>

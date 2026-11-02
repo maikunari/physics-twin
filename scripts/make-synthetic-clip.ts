@@ -3,7 +3,7 @@
  * the fixture scene simulated with known parameters, rendered as a 240 fps
  * clip, plus the scene.json and sam-raw.txt a real take would produce.
  *
- *   npx tsx scripts/make-synthetic-clip.ts [--mu 0.08] [--e 0.55] [--seed 1] [--delay 1] [--out smoke-out/synthetic]
+ *   npx tsx scripts/make-synthetic-clip.ts [--mu 0.08] [--e 0.55] [--seed 1] [--delay 1] [--duration 1.5] [--out smoke-out/synthetic]
  *
  * Writes synthetic.mp4, scene.json, sam-raw.txt and truth.json (the true
  * parameters and release frame) to the output folder. Needs ffmpeg. The
@@ -94,12 +94,15 @@ async function main() {
     restitution: numberFlag(flags, 'e', 0.55),
   };
   const releaseDelaySec = numberFlag(flags, 'delay', 1);
+  // Seconds simulated after the release; past the 1 s fit window, the rest is what a prediction is checked against.
+  const durationSec = numberFlag(flags, 'duration', 1.5);
+  if (!(durationSec > 0)) fail('--duration must be positive');
   const seed = numberFlag(flags, 'seed', 1);
   const size = FIXTURE_IMAGE_SIZE;
 
   await initRapier();
   const take = makeSyntheticTake(FIXTURE_SCENE, size, params, {
-    durationSec: 1.5,
+    durationSec,
     fps,
     seed,
     releaseDelaySec,

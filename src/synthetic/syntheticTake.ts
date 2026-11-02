@@ -11,7 +11,7 @@ import {
 } from '../scene/calibration';
 import type { GroundedScene } from '../scene/schema';
 import type { SimParams } from '../sim/params';
-import { createPrng } from '../sim/prng';
+import { createPrng, gaussian } from '../sim/prng';
 import { simulateScene, type Trajectory, type WorldOptions } from '../sim/sceneWorld';
 import { formatSamFrameLine, trackedObjectsFor, type SamWireRecord, type TrackedObject } from '../tracks/samText';
 
@@ -47,13 +47,6 @@ export interface SyntheticTake {
   /** The ball's true centre in source pixels per frame (before noise), for rendering a clip. */
   readonly ballPx: readonly { readonly x: number; readonly y: number }[];
   readonly ballRadiusPx: number;
-}
-
-/** Standard normal deviate from a uniform PRNG (Box–Muller). */
-function gaussian(rand: () => number): number {
-  const u = 1 - rand();
-  const v = rand();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
 function boxAround(cx: number, cy: number, r: number, size: ImageSize): PixelBox {

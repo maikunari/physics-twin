@@ -6,7 +6,8 @@
  *   MODEL_API_KEY=... npx tsx scripts/smoke-spark.ts path/to/frame0.jpg
  *
  * Writes smoke-out/frame0.jpg, smoke-out/scene.json (which smoke-sam.ts reads
- * for its box prompts), smoke-out/spark-raw.txt and an overlay JPEG to eyeball.
+ * for its box prompts), smoke-out/spark-raw.txt and an overlay JPEG to eyeball;
+ * `--out <dir>` writes them there instead.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -32,6 +33,7 @@ import {
   parseArgs,
   probeMedia,
   requireApiKey,
+  shown,
 } from './lib/meta';
 
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png']);
@@ -60,12 +62,13 @@ async function main() {
   const apiKey = requireApiKey();
   const { positional, flags } = parseArgs(process.argv.slice(2));
   const input = positional[0];
-  if (!input) fail('usage: npx tsx scripts/smoke-spark.ts <clip.mov|frame0.jpg> [--marker-cm 50]');
+  if (!input) fail('usage: npx tsx scripts/smoke-spark.ts <clip.mov|frame0.jpg> [--marker-cm 50] [--out smoke-out]');
   if (!existsSync(input)) fail(`no such file: ${input}`);
   const markerCm = Number(flags.get('marker-cm') ?? 50);
   if (!(markerCm > 0)) fail('--marker-cm must be a positive number');
 
-  const out = ensureOutDir();
+  const out = ensureOutDir(flags.get('out'));
+  const raw = shown(path.join(out, 'spark-raw.txt'));
   let frame = input;
   if (!IMAGE_EXT.has(path.extname(input).toLowerCase())) {
     frame = path.join(out, 'frame0.jpg');
@@ -98,19 +101,19 @@ async function main() {
   const elapsedMs = Date.now() - started;
   const text = response.output_text;
   writeFileSync(path.join(out, 'spark-raw.txt'), text);
-  console.log(`reply in ${elapsedMs} ms, ${text.length} chars (raw: smoke-out/spark-raw.txt)`);
+  console.log(`reply in ${elapsedMs} ms, ${text.length} chars (raw: ${raw})`);
   if (response.usage) console.log(`usage: ${JSON.stringify(response.usage)}`);
 
   let json: unknown;
   try {
     json = JSON.parse(text);
   } catch {
-    fail('reply is not JSON; see smoke-out/spark-raw.txt');
+    fail(`reply is not JSON; see ${raw}`);
   }
   const parsed = groundedSceneSchema.safeParse(json);
   if (!parsed.success) {
     console.error(parsed.error.issues);
-    fail('reply does not match the scene schema; see smoke-out/spark-raw.txt');
+    fail(`reply does not match the scene schema; see ${raw}`);
   }
   const scene = parsed.data;
   const imageSize = { width: size.width, height: size.height };
@@ -119,7 +122,7 @@ async function main() {
   const overlay = path.join(out, 'scene-overlay.jpg');
   drawOverlay(frame, overlay, scene, imageSize);
 
-  console.log('\nscene JSON valid ✓  (smoke-out/scene.json)');
+  console.log(`\nscene JSON valid ✓  (${shown(path.join(out, 'scene.json'))})`);
   console.log(`blocks: ${scene.blocks.map((b) => `${b.id} (${b.label})`).join(', ') || 'none'}`);
   console.log(`ball box for SAM (px): ${JSON.stringify(ballPixelBox(scene, imageSize))}`);
   if (!hasUsableScale(scene)) {

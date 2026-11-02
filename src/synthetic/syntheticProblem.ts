@@ -19,7 +19,7 @@ export const syntheticTruth = (muRamp: number, restitution: number): SimParams =
 
 export interface SyntheticFitCase {
   readonly take: SyntheticTake;
-  /** Every measured ball point of the 1.5 s take, past the fit window too. */
+  /** Every measured ball point of the take, past the fit window too. */
   readonly points: readonly TrajectoryPoint[];
   readonly problem: FitProblem;
 }
@@ -27,9 +27,10 @@ export interface SyntheticFitCase {
 /**
  * A synthetic take of the fixture scene, measured through the real SAM parser
  * and tracks pipeline, and the fit problem built from it (release at frame 0).
+ * `durationSec` past the 1.0 s window is footage a prediction is checked against.
  */
-export function syntheticFitCase(truth: SimParams, seed: number): SyntheticFitCase {
-  const take = makeSyntheticTake(FIXTURE_SCENE, FIXTURE_IMAGE_SIZE, truth, { durationSec: 1.5, seed, ...SYNTHETIC_MEASUREMENT });
+export function syntheticFitCase(truth: SimParams, seed: number, durationSec = 1.5): SyntheticFitCase {
+  const take = makeSyntheticTake(FIXTURE_SCENE, FIXTURE_IMAGE_SIZE, truth, { durationSec, seed, ...SYNTHETIC_MEASUREMENT });
   const [ball] = tracksToTrajectories(parseSamText(take.samText).records, take.objects, take.calibration);
   if (!ball) throw new Error('synthetic take has no ball track');
   return { take, points: ball.points, problem: makeFitProblem(take.world, ball.points) };
