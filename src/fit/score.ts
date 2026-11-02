@@ -17,12 +17,17 @@ export function sampleAt(sim: Trajectory, t: number): TrajectorySample {
   return { t, x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, angle: a.angle + (b.angle - a.angle) * f };
 }
 
-/** Root-mean-square distance between the simulation and the measured points, cm. NaN with no points. */
-export function rmsCm(sim: Trajectory, points: readonly TrajectoryPoint[]): number {
+/**
+ * Root-mean-square distance between the simulation and the measured points,
+ * cm. NaN with no points. `shiftSec` moves the measured clock: a point at t
+ * is compared with the simulation at t − shiftSec, which corrects a release
+ * time detected slightly early (positive) or late (negative).
+ */
+export function rmsCm(sim: Trajectory, points: readonly TrajectoryPoint[], shiftSec = 0): number {
   if (points.length === 0) return Number.NaN;
   let sum = 0;
   for (const p of points) {
-    const s = sampleAt(sim, p.t);
+    const s = sampleAt(sim, p.t - shiftSec);
     sum += (s.x - p.x) ** 2 + (s.y - p.y) ** 2;
   }
   return Math.sqrt(sum / points.length);
@@ -52,3 +57,4 @@ export function splitAtRampEnd(points: readonly TrajectoryPoint[], scene: WorldS
   const index = points.findIndex((p) => (p.x - end) * dir > 0);
   return index < 0 ? { ramp: points, after: [] } : { ramp: points.slice(0, index), after: points.slice(index) };
 }
+

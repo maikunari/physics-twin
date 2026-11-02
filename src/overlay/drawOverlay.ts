@@ -7,6 +7,8 @@ const COLOURS = {
   blockMask: [59, 130, 246],
   trail: '#22d3ee',
   ghost: '#f8fafc',
+  /** The simulated path past the fit window: what the fitted parameters predict, not what they were fitted on. */
+  ghostAfterWindow: '#c4b5fd',
   text: '#f8fafc',
 } as const;
 const MASK_ALPHA = 110;
@@ -85,11 +87,14 @@ export function drawOverlay(ctx: CanvasRenderingContext2D, data: OverlayData, t:
   }
 
   const ghost = ghostAt(data, t);
-  ctx.strokeStyle = COLOURS.ghost;
   ctx.setLineDash([4 * unit, 3 * unit]);
   ctx.lineWidth = 1 * unit;
-  polyline(ctx, ghost.path);
+  ctx.strokeStyle = COLOURS.ghost;
+  polyline(ctx, ghost.path.slice(0, ghost.fittedPoints));
+  ctx.strokeStyle = COLOURS.ghostAfterWindow;
+  polyline(ctx, ghost.path.slice(Math.max(0, ghost.fittedPoints - 1)));
   ctx.setLineDash([]);
+  ctx.strokeStyle = ghost.path.length > ghost.fittedPoints ? COLOURS.ghostAfterWindow : COLOURS.ghost;
   ctx.lineWidth = 1.5 * unit;
   ctx.beginPath();
   ctx.arc(ghost.ball.x, ghost.ball.y, ghost.radiusPx, 0, Math.PI * 2);
@@ -103,4 +108,5 @@ export function drawOverlay(ctx: CanvasRenderingContext2D, data: OverlayData, t:
   ctx.fillStyle = COLOURS.text;
   ctx.font = `${10 * unit}px system-ui, sans-serif`;
   ctx.fillText(`t ${t.toFixed(3)} s · frame ${frame}`, 8 * unit, 16 * unit);
+  if (ghost.path.length > ghost.fittedPoints) ctx.fillText('past the fit window: simulated, not fitted', 8 * unit, 30 * unit);
 }
