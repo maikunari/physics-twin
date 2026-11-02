@@ -91,8 +91,9 @@ function minimise1d(f: (x: number) => number, lo: number, hi: number, steps: num
  * both on the whole window at once gives a jagged error surface, because a
  * small change in μ shifts when every later bounce happens.
  *
- * Only points inside the fit window are read. The Muse Spark agent and the
- * Nelder–Mead fitter over all parameters replace this on day 3.
+ * Only points inside the fit window are read. The app now fits with the
+ * day-3 fit loop (`session.ts`: Muse Spark agent and Nelder–Mead); this stays
+ * as an independent cross-check with its own ground-truth test.
  */
 export function recoverMuAndRestitution(
   scene: WorldScene,
