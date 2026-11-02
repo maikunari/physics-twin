@@ -9,7 +9,8 @@ import {
   type Vec2,
   type WorldScene,
 } from '../scene/calibration';
-import { recoverMuAndRestitution, type Recovery } from '../fit/recover';
+import { fitRequestFor, type FitRequest } from '../fit/fitWorkerProtocol';
+import { DEFAULT_WINDOW_END_SEC } from '../fit/recover';
 import { groundedSceneSchema } from '../scene/schema';
 import type { SimParams } from '../sim/params';
 import { ballStart, simulateScene, type Trajectory } from '../sim/sceneWorld';
@@ -85,15 +86,14 @@ export function withParams(data: OverlayData, params: SimParams): OverlayData {
 }
 
 /**
- * Fits μ_ramp and e to the ball's first second after release (the day-2
- * numeric fit), holding the other parameters at the current ones, and
- * re-simulates with the result.
+ * The fit worker's request for this clip: the ball's points from the release,
+ * cut at the end of the fit window (spec §5, 0–1.0 s), starting from the
+ * current parameters.
  */
-export function fitOverlay(data: OverlayData): { readonly data: OverlayData; readonly recovery: Recovery } {
+export function fitRequestForOverlay(data: OverlayData, useAgent: boolean): FitRequest {
   const ball = ballTrajectory(data);
   if (!ball) throw new Error('no ball track to fit');
-  const recovery = recoverMuAndRestitution(data.world, sinceRelease(ball.points, data.releaseSec), { base: data.params });
-  return { data: withParams(data, recovery.params), recovery };
+  return fitRequestFor({ world: data.world, points: sinceRelease(ball.points, data.releaseSec), initial: data.params, useAgent });
 }
 
 /**
@@ -171,6 +171,8 @@ export interface Ghost {
   readonly ball: Vec2;
   readonly angle: number;
   readonly radiusPx: number;
+  /** How many leading points of `path` lie inside the fit window; the rest is simulation past what was fitted. */
+  readonly fittedPoints: number;
 }
 
 /** The simulated ball at clip time `t`: at rest on its start until the release, then following the run. */
@@ -185,5 +187,6 @@ export function ghostAt(data: Pick<OverlayData, 'sim' | 'calibration' | 'release
     ball: now ? worldToPixel(calibration, now) : worldToPixel(calibration, data.world.ball.center),
     angle: now?.angle ?? 0,
     radiusPx: data.world.ball.radius * calibration.pixelsPerCm,
+    fittedPoints: Math.min(path.length, Math.floor(DEFAULT_WINDOW_END_SEC / sim.dt + 1e-6) + 1),
   };
 }

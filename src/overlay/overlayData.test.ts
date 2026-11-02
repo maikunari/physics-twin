@@ -2,11 +2,15 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { FIXTURE_IMAGE_SIZE, FIXTURE_SCENE } from '../scene/fixtures';
 import { DEFAULT_SIM_PARAMS, type SimParams } from '../sim/params';
 import { initRapier } from '../sim/sceneWorld';
+import { handleFitRequest, type FitWorkerMessage } from '../fit/fitWorkerProtocol';
+import { makeFitProblem } from '../fit/fitter';
+import { runFitSession } from '../fit/session';
+import { SYNTHETIC_MEASUREMENT, syntheticTruth } from '../synthetic/syntheticProblem';
 import { makeSyntheticTake } from '../synthetic/syntheticTake';
 import type { ObjectTrajectory } from '../tracks/trajectories';
 import {
   ballTrajectory,
-  fitOverlay,
+  fitRequestForOverlay,
   frameAtTime,
   ghostAt,
   loadOverlayData,
@@ -103,6 +107,15 @@ describe('ghostAt', () => {
     }
   });
 
+  it('marks where the path leaves the fit window', () => {
+    const data = load();
+    expect(ghostAt(data, data.releaseSec + 0.5).fittedPoints).toBe(ghostAt(data, data.releaseSec + 0.5).path.length);
+    const late = ghostAt(data, data.releaseSec + 1.3);
+    expect(late.fittedPoints).toBe(241);
+    expect(data.sim.samples[late.fittedPoints - 1]!.t).toBeCloseTo(1, 6);
+    expect(late.path.length).toBeGreaterThan(late.fittedPoints);
+  });
+
   it('holds the last simulated position past the end of the run', () => {
     const data = load();
     const end = ghostAt(data, 99);
@@ -110,7 +123,7 @@ describe('ghostAt', () => {
   });
 });
 
-describe('withParams and fitOverlay', () => {
+describe('withParams and the fit request', () => {
   it('re-simulates over the same span for new parameters', () => {
     const data = load();
     const next = withParams(data, { ...TRUTH, restitution: 0.2 });
@@ -119,15 +132,61 @@ describe('withParams and fitOverlay', () => {
     expect(next.trajectories).toBe(data.trajectories);
   });
 
-  it('fits from a wrong start and brings the ghost back onto the real ball', () => {
+  it('sends the fitter only the first second after the release, timed from the release', () => {
+    const data = load();
+    const request = fitRequestForOverlay(data, false);
+    const ball = ballTrajectory(data)!;
+    const shown = ball.points.filter((p) => p.t >= data.releaseSec && p.t <= data.releaseSec + 1);
+    expect(request.points).toHaveLength(shown.length);
+    expect(request.points.every((p) => p.t >= 0 && p.t <= 1)).toBe(true);
+    // The clip runs 1.5 s past the release, so half a second of it is held back.
+    expect(ball.points.some((p) => p.t > data.releaseSec + 1.2)).toBe(true);
+  });
+
+  it('fits in the worker from a wrong start and brings the ghost back onto the real ball, past the window too', async () => {
     const wrong = load({ ...TRUTH, muRamp: 0.3, restitution: 0.2 });
-    const t = 1.8;
+    // 1.4 s after the release: 0.4 s past what the fitter saw.
+    const t = wrong.releaseSec + 1.4;
     const real = take.ballPx[frameAtTime(t, 240)]!;
     const before = ghostAt(wrong, t).ball;
-    const { data, recovery } = fitOverlay(wrong);
-    const after = ghostAt(data, t).ball;
+    const messages: FitWorkerMessage[] = [];
+    await handleFitRequest(fitRequestForOverlay(wrong, false), (m) => messages.push(m), async () => ({}));
+    const done = messages.at(-1);
+    if (done?.type !== 'done') throw new Error(`fit did not finish: ${JSON.stringify(done)}`);
+    const after = ghostAt(withParams(wrong, done.result.best.params), t).ball;
     expect(Math.hypot(before.x - real.x, before.y - real.y)).toBeGreaterThan(40);
     expect(Math.hypot(after.x - real.x, after.y - real.y)).toBeLessThan(10);
-    expect(recovery.rmsCm).toBeLessThan(0.5);
+    expect(done.result.best.rmsCm).toBeLessThan(0.2);
   }, 20_000);
+});
+
+/**
+ * The overlay path detects the release from the track, to within a frame or
+ * so, and a 2 ms error moves μ_ramp by about 0.007. The fit refines the
+ * release on the ramp segment and holds it. Stated tolerance on this path:
+ * the release to 0.5 ms, |Δμ_ramp| ≤ 0.003, |Δe| ≤ 0.05.
+ */
+describe('fitting a take with a detected release', () => {
+  it.each([
+    [0.08, 0.55, 11],
+    [0.03, 0.45, 12],
+    [0.12, 0.7, 13],
+    [0.05, 0.3, 14],
+  ])('μ_ramp %f, e %f (noise seed %i)', async (muRamp, restitution, seed) => {
+    const truth = syntheticTruth(muRamp, restitution);
+    const delayed = makeSyntheticTake(FIXTURE_SCENE, FIXTURE_IMAGE_SIZE, truth, {
+      durationSec: 1.5,
+      releaseDelaySec: 1,
+      seed,
+      ...SYNTHETIC_MEASUREMENT,
+    });
+    const data = loadOverlayData({ sceneJson, samText: delayed.samText, fps: 240, params: { ...truth, muRamp: 0.3, restitution: 0.5 } });
+    const request = fitRequestForOverlay(data, false);
+    const result = await runFitSession(makeFitProblem(request.world, request.points), request.initial);
+
+    // A positive shift means the ball really left later than detected.
+    expect(Math.abs(data.releaseSec + result.best.timeShiftSec - 1)).toBeLessThan(0.0005);
+    expect(Math.abs(result.best.params.muRamp - muRamp)).toBeLessThanOrEqual(0.003);
+    expect(Math.abs(result.best.params.restitution - restitution)).toBeLessThanOrEqual(0.05);
+  }, 30_000);
 });
