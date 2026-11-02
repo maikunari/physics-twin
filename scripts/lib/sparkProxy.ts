@@ -1,4 +1,4 @@
-import { sparkRequestSchema } from '../../src/agent/sparkWire';
+import { sparkRequestSchema, type SparkTransport } from '../../src/agent/sparkWire';
 
 /** Requests bigger than this are refused before parsing; a fitting turn is a few kB. */
 export const MAX_PROXY_BODY_BYTES = 256 * 1024;
@@ -42,4 +42,13 @@ export async function proxySparkRequest(rawBody: string, config: ProxyConfig): P
     body: JSON.stringify(request.data),
   });
   return { status: res.status, body: await res.text() };
+}
+
+/** The fitting agent's transport for a terminal script: the same validated request shape and forwarding as `/api/spark`. */
+export function scriptSparkTransport(config: ProxyConfig): SparkTransport {
+  return async (request) => {
+    const answer = await proxySparkRequest(JSON.stringify(request), config);
+    if (answer.status !== 200) throw new Error(`Meta Model API answered ${answer.status}: ${answer.body.slice(0, 200)}`);
+    return JSON.parse(answer.body) as unknown;
+  };
 }

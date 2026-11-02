@@ -6,8 +6,9 @@
  *
  * Box prompts come from smoke-out/scene.json (written by smoke-spark.ts) by
  * default, or from `--box left,top,right,bottom` (ball, displayed pixels).
- * Writes smoke-out/sam-raw.txt and smoke-out/sam-summary.json and prints a
- * go/no-go verdict for the ball track.
+ * Writes smoke-out/sam-raw.txt and smoke-out/sam-summary.json (or into
+ * `--out <dir>`, where it also looks for scene.json) and prints a go/no-go
+ * verdict for the ball track.
  */
 import { createReadStream, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -26,6 +27,7 @@ import {
   parseArgs,
   probeMedia,
   requireApiKey,
+  shown,
 } from './lib/meta';
 
 interface Prompted extends PromptedObject {
@@ -65,7 +67,7 @@ async function main() {
   const apiKey = requireApiKey();
   const { positional, flags } = parseArgs(process.argv.slice(2), ['inline']);
   const clip = positional[0];
-  if (!clip) fail('usage: npx tsx scripts/smoke-sam.ts <clip.mov> [--scene smoke-out/scene.json | --box l,t,r,b] [--inline]');
+  if (!clip) fail('usage: npx tsx scripts/smoke-sam.ts <clip.mov> [--scene smoke-out/scene.json | --box l,t,r,b] [--inline] [--out smoke-out]');
   if (!existsSync(clip)) fail(`no such file: ${clip}`);
   const bytes = readFileSync(clip).byteLength;
   if (bytes > MAX_CLIP_BYTES) fail(`clip is ${(bytes / 1e6).toFixed(1)} MB; trim it under 50 MB (and ideally under 3 s) first`);
@@ -82,7 +84,8 @@ async function main() {
   }
 
   const boxFlag = flags.get('box');
-  const sceneFile = flags.get('scene') ?? path.join(SMOKE_OUT_DIR, 'scene.json');
+  const outDir = flags.get('out') ?? SMOKE_OUT_DIR;
+  const sceneFile = flags.get('scene') ?? path.join(outDir, 'scene.json');
   let prompted: Prompted[];
   if (boxFlag) prompted = promptFromFlag(boxFlag);
   else if (existsSync(sceneFile)) prompted = promptsFromScene(sceneFile, size);
@@ -129,9 +132,9 @@ async function main() {
   const elapsedMs = Date.now() - started;
   process.stdout.write('\n');
 
-  const out = ensureOutDir();
+  const out = ensureOutDir(outDir);
   writeFileSync(path.join(out, 'sam-raw.txt'), result.rawOutput);
-  console.log(`stream ${result.outcome.status} in ${(elapsedMs / 1000).toFixed(1)} s; raw output: smoke-out/sam-raw.txt`);
+  console.log(`stream ${result.outcome.status} in ${(elapsedMs / 1000).toFixed(1)} s; raw output: ${shown(path.join(out, 'sam-raw.txt'))}`);
   const errors = result.diagnostics.filter((d) => d.severity === 'error');
   if (errors.length) console.warn(`parser reported ${errors.length} error diagnostics, first: ${errors[0]?.message}`);
 
@@ -154,7 +157,7 @@ async function main() {
   if (ball?.meanConfidence === null) console.warn('note: no confidence values came back (include_confidence not honoured?)');
   console.log(`\n${verdict.go ? 'GO' : 'NO-GO'}: ball track ${verdict.go ? 'looks usable' : 'needs work'}`);
   for (const reason of verdict.reasons) console.log(`  - ${reason}`);
-  console.log('summary: smoke-out/sam-summary.json');
+  console.log(`summary: ${shown(path.join(out, 'sam-summary.json'))}`);
   if (!verdict.go) process.exitCode = 1;
 }
 

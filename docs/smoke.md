@@ -49,7 +49,7 @@ Two scripts check that the Meta Model API does what Physics Twin needs, using on
 
    The first line it prints should show about 240 fps. If it shows 30 fps, the phone sent a rendered copy rather than the original slo-mo; re-send it with AirDrop **Options → All Photos Data**.
 
-Both scripts exit non-zero on failure. Their raw output and summaries are in `smoke-out/`, which is git-ignored. Send that folder back with the clip.
+Both scripts exit non-zero on failure. Their raw output and summaries are in `smoke-out/`, which is git-ignored (or in `--out <dir>`, which the day-4 results script uses for one folder per take). Send that folder back with the clip.
 
 ## Reading the verdict
 
