@@ -12,3 +12,10 @@ export function createPrng(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/** Standard normal deviate from a uniform PRNG (Box–Muller). */
+export function gaussian(rand: () => number): number {
+  const u = 1 - rand();
+  const v = rand();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}

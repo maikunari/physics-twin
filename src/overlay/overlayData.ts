@@ -9,6 +9,7 @@ import {
   type Vec2,
   type WorldScene,
 } from '../scene/calibration';
+import { makeFitProblem, type FitProblem } from '../fit/fitter';
 import { fitRequestFor, type FitRequest } from '../fit/fitWorkerProtocol';
 import { DEFAULT_WINDOW_END_SEC } from '../fit/recover';
 import { groundedSceneSchema } from '../scene/schema';
@@ -45,6 +46,12 @@ export interface OverlayData {
   readonly droppedRecords: number;
   /** Clip time when the ball was let go: the simulation's t = 0. */
   readonly releaseSec: number;
+  /**
+   * Clip time of the last frame SAM returned anything for, any object. The
+   * blocks are tracked on every frame, so this is the clip's length, which a
+   * prediction may know without looking at the ball after the freeze.
+   */
+  readonly clipEndSec: number;
   readonly params: SimParams;
   readonly sim: Trajectory;
 }
@@ -96,6 +103,24 @@ export function fitRequestForOverlay(data: OverlayData, useAgent: boolean): FitR
   return fitRequestFor({ world: data.world, points: sinceRelease(ball.points, data.releaseSec), initial: data.params, useAgent });
 }
 
+/** What the predict step needs from a loaded clip, on the clock the fit was cut on. */
+export interface PredictionInputs {
+  /** The fit window only: what the prediction may read. */
+  readonly problem: FitProblem;
+  /** Every measured ball point from the release on, for the reveal. */
+  readonly measured: readonly TrajectoryPoint[];
+  /** When the clip ends, seconds from the release. */
+  readonly clipEndSec: number;
+}
+
+/** Splits the clip's ball track at the freeze, measured from the release the fit used (`FitReport.detectedReleaseSec`). */
+export function predictionInputs(data: OverlayData, releaseSec: number): PredictionInputs {
+  const ball = ballTrajectory(data);
+  if (!ball) throw new Error('no ball track to predict');
+  const measured = sinceRelease(ball.points, releaseSec);
+  return { problem: makeFitProblem(data.world, measured), measured, clipEndSec: data.clipEndSec - releaseSec };
+}
+
 /**
  * Builds the overlay for a clip from the files the smoke scripts write:
  * scene.json (Muse Spark grounding) and sam-raw.txt (SAM 3.1 output).
@@ -128,6 +153,7 @@ export function loadOverlayData(inputs: OverlayInputs): OverlayData {
   const rampRunCm = Math.hypot(world.ramp.bottom.x - start.x, world.ramp.bottom.y - start.y);
   const releaseSec = detectReleaseTime(ball.points, RELEASE_FIT_SHARE * rampRunCm) ?? ball.points[0]?.t ?? 0;
   const lastSec = ball.points.at(-1)?.t ?? releaseSec;
+  const lastFrame = parsed.records.reduce((max, r) => Math.max(max, frameIndexOf(r) ?? 0), 0);
   const durationSec = Math.min(MAX_SIM_SEC, Math.max(1, lastSec - releaseSec + SIM_TAIL_SEC));
   return {
     calibration,
@@ -137,6 +163,7 @@ export function loadOverlayData(inputs: OverlayInputs): OverlayData {
     masks: masksByFrame(parsed.records),
     droppedRecords: parsed.diagnostics.filter((d) => d.severity === 'error').length,
     releaseSec,
+    clipEndSec: lastFrame / inputs.fps,
     params: inputs.params,
     sim: simulateScene(world, inputs.params, { durationSec }),
   };
