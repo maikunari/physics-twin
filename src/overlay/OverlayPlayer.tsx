@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { drawOverlay, type MaskCache } from './drawOverlay';
+import { drawOverlay, type MaskCache, type PredictOverlay } from './drawOverlay';
 import type { OverlayData } from './overlayData';
 
 interface Props {
   readonly videoUrl: string;
   readonly data: OverlayData;
+  /** The predict step: while not revealed the clip is held at the freeze. */
+  readonly predict?: PredictOverlay | null;
+  /** Called with the media time of every frame drawn. */
+  readonly onTime?: (t: number) => void;
 }
 
 const RATES = [1, 0.25, 0.1] as const;
@@ -14,21 +18,64 @@ const RATES = [1, 0.25, 0.1] as const;
  * stacked over the video and scaled with it. Redraws on every presented
  * frame (requestVideoFrameCallback, which reports the frame's media time)
  * and on seeks, so the overlay matches the frame on screen when paused or
- * scrubbed too.
+ * scrubbed too. Once a prediction is committed the clip is held at the
+ * freeze until the reveal, which plays on from there.
  */
-export function OverlayPlayer({ videoUrl, data }: Props) {
+export function OverlayPlayer({ videoUrl, data, predict = null, onTime }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [sizeWarning, setSizeWarning] = useState<string | null>(null);
   const [rate, setRate] = useState<number>(1);
   const { width, height } = data.calibration.imageSize;
+  const onTimeRef = useRef(onTime);
+  useEffect(() => {
+    onTimeRef.current = onTime;
+  }, [onTime]);
+
+  // Before the reveal the clip may play up to the freeze and no further.
+  const holdAtSec = predict && !predict.revealed ? predict.clockZeroSec + predict.prediction.freezeSec : null;
+  const revealFromSec = predict?.revealed ? predict.clockZeroSec + predict.prediction.freezeSec : null;
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || holdAtSec === null) return;
+    const hold = () => {
+      if (video.currentTime > holdAtSec) {
+        video.pause();
+        video.currentTime = holdAtSec;
+      }
+    };
+    video.pause();
+    video.currentTime = holdAtSec;
+    video.addEventListener('timeupdate', hold);
+    video.addEventListener('seeking', hold);
+    video.addEventListener('play', hold);
+    return () => {
+      video.removeEventListener('timeupdate', hold);
+      video.removeEventListener('seeking', hold);
+      video.removeEventListener('play', hold);
+    };
+  }, [holdAtSec]);
+
+  // The reveal plays on from the freeze.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || revealFromSec === null) return;
+    video.currentTime = revealFromSec;
+    void video.play().catch(() => undefined);
+  }, [revealFromSec]);
 
   useEffect(() => {
     const video = videoRef.current;
     const ctx = canvasRef.current?.getContext('2d');
     if (!video || !ctx) return;
     const cache: MaskCache = new WeakMap();
-    const paint = (t: number) => drawOverlay(ctx, data, t, cache);
+    const paint = (t: number) => {
+      // Never draw past the freeze while the clip is held, even for the one frame before the pause lands.
+      const shown = holdAtSec === null ? t : Math.min(t, holdAtSec);
+      drawOverlay(ctx, data, shown, cache, predict);
+      onTimeRef.current?.(shown);
+    };
 
     let frameHandle = 0;
     let rafHandle = 0;
@@ -47,6 +94,7 @@ export function OverlayPlayer({ videoUrl, data }: Props) {
       rafHandle = requestAnimationFrame(onAnimationFrame);
     }
     const onSeeked = () => paint(video.currentTime);
+    const onEnded = () => paint(video.duration);
     const onMetadata = () => {
       const sceneAspect = width / height;
       const clipAspect = video.videoWidth / video.videoHeight;
@@ -58,15 +106,17 @@ export function OverlayPlayer({ videoUrl, data }: Props) {
       paint(video.currentTime);
     };
     video.addEventListener('seeked', onSeeked);
+    video.addEventListener('ended', onEnded);
     video.addEventListener('loadedmetadata', onMetadata);
     paint(video.currentTime);
     return () => {
       if (frameHandle) video.cancelVideoFrameCallback(frameHandle);
       if (rafHandle) cancelAnimationFrame(rafHandle);
       video.removeEventListener('seeked', onSeeked);
+      video.removeEventListener('ended', onEnded);
       video.removeEventListener('loadedmetadata', onMetadata);
     };
-  }, [data, width, height]);
+  }, [data, width, height, predict, holdAtSec]);
 
   useEffect(() => {
     if (videoRef.current) videoRef.current.playbackRate = rate;

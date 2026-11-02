@@ -8,7 +8,7 @@
 | The measured ball trail so far | cyan line | `sam-raw.txt` → trajectories in cm |
 | The simulated ball and its path | white circle, dashed line; violet once past the fit window | `scene.json` → Rapier, started at the release |
 
-Load three files: the clip, its `scene.json` (from `smoke-spark.ts`) and its `sam-raw.txt` (from `smoke-sam.ts`). The frame rate defaults to 240 fps. The tape-mark distance comes from `scene.json` unless you type another one. Under the summary you can change μ ramp, μ table and e, or press **Fit on the first 1.0 s** to run the day-3 fit (Nelder–Mead in a Web Worker, with the Muse Spark agent when the dev server has a key) on the first second after release. See [fit.md](fit.md).
+Load three files: the clip, its `scene.json` (from `smoke-spark.ts`) and its `sam-raw.txt` (from `smoke-sam.ts`). The frame rate defaults to 240 fps. The tape-mark distance comes from `scene.json` unless you type another one. Under the summary you can change μ ramp, μ table and e, or press **Fit on the first 1.0 s** to run the day-3 fit (Nelder–Mead in a Web Worker, with the Muse Spark agent when the dev server has a key) on the first second after release. See [fit.md](fit.md). After a fit, **Freeze and predict** holds the clip at the freeze, publishes the prediction's hash and then reveals the footage; see [predict.md](predict.md).
 
 ## Without footage
 

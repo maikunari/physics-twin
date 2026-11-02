@@ -14,6 +14,12 @@ export interface FitReport {
   readonly rmsCm: readonly number[];
   /** Set when the fitted μ_ramp is at or past the rolling threshold, so it is only a lower bound. */
   readonly muRampLowerBound: number | null;
+  /**
+   * The release as detected from the track, clip seconds: the fit window was
+   * cut on this clock, and the prediction uses it too. The overlay's own
+   * `releaseSec` moves on by the fit's correction.
+   */
+  readonly detectedReleaseSec: number;
 }
 
 /**
