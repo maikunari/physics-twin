@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { SPARK_AGENT_MODEL } from '../agent/sparkWire';
-import { DEFAULT_MARKER_DISTANCE_CM } from '../scene/calibration';
+import { SPARK_AGENT_MODEL } from '../agent/sparkWire.js';
+import { DEFAULT_MARKER_DISTANCE_CM } from '../scene/calibration.js';
 
 export const SAM_MODEL = 'sam-3.1';
 export const SPARK_MODEL = SPARK_AGENT_MODEL;

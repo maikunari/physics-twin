@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/track.ts": { "maxDuration": 300 },
+    "api/scene.ts": { "maxDuration": 120 },
+    "api/agent.ts": { "maxDuration": 90 },
+    "api/whatif.ts": { "maxDuration": 90 }
+  }
+}

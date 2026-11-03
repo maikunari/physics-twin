@@ -1,6 +1,6 @@
 # Day-5 thin server: /api/track, /api/scene, /api/agent, /api/whatif
 
-The page never holds the Model API key. Four routes do the Meta Model API calls with `MODEL_API_KEY` from the server's environment (spec §5). The same handlers (`server/`) run on the Vite dev server (`npm run dev`, mounted in `vite.config.ts` by `server/node.ts`) and as Vercel functions (`api/*.ts`, via `server/vercel.ts`; deploying is day 6).
+The page never holds the Model API key. Four routes do the Meta Model API calls with `MODEL_API_KEY` from the server's environment (spec §5). The same handlers (`server/`) run on the Vite dev server (`npm run dev`, mounted in `vite.config.ts` by `server/node.ts`) and as Vercel functions (`api/*.ts`, via `server/vercel.ts`; `vercel.json` sets the build). Vercel runs each function as an ES module, so every relative import the functions load names its `.js` file; `server/functionImports.test.ts` checks it.
 
 | Route | Body (zod-checked) | Calls | Answers |
 |---|---|---|---|
@@ -39,8 +39,8 @@ See `.env.example`. On the dev server, put them in the shell or a git-ignored `.
 ## Limits to know
 
 - The cache and the limits live in memory: one dev server, or one warm Vercel instance. A cold start empties them, and two instances do not share them. That stops a page in a loop or a curious visitor from spending the credits; it is not a quota system.
-- A Vercel function takes at most 4.5 MB of request body, so on the deployed site `/api/track` only takes a short, small clip (the 240 fps originals are tens of MB). The dev server takes up to 50 MB (spec §6.1). The presets (day 6) need no upload.
-- Like the day-1 smoke scripts, the requests follow Meta's docs and have been run against a local mock only. Not yet checked against the live API: that SAM 3.1 takes the clip inline as a `video_url` data URL (the smoke script's `--inline` path), and the Vercel side, since nothing has been deployed.
+- A Vercel function takes at most 4.5 MB of request body, so on the deployed site `/api/track` only takes a short, small clip (the 240 fps originals are tens of MB). The dev server takes up to 50 MB (spec §6.1). The presets ([presets.md](presets.md)) need no upload.
+- Like the day-1 smoke scripts, the requests follow Meta's docs and have been run against a local mock only. Not yet checked against the live API: that SAM 3.1 takes the clip inline as a `video_url` data URL (the smoke script's `--inline` path). On Vercel, a day-6 preview with the kill switch on answered all four routes with the kill switch's 503 and served the presets; no deployed route has called the API yet.
 
 ## Uploading a clip on the page
 

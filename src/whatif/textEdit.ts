@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { SPARK_AGENT_MODEL, outputText, sparkResponseSchema } from '../agent/sparkWire';
-import { MAX_RAMP_ANGLE_DEG, whatIfEditSchema, type WhatIfEdit } from '../scene/whatIfEdit';
+import { SPARK_AGENT_MODEL, outputText, sparkResponseSchema } from '../agent/sparkWire.js';
+import { MAX_RAMP_ANGLE_DEG, whatIfEditSchema, type WhatIfEdit } from '../scene/whatIfEdit.js';
 
 export const MAX_WHATIF_TEXT = 300;
 

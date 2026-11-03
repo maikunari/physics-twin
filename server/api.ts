@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { z } from 'zod';
-import { DailyCap, RateLimiter, ReplyCache, type Clock } from './limits';
+import { DailyCap, RateLimiter, ReplyCache, type Clock } from './limits.js';
 
 /** Meta Model API: OpenAI-compatible Responses API (dev.meta.ai/docs/quickstart). */
 export const META_BASE_URL = 'https://api.meta.ai/v1';

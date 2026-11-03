@@ -20,7 +20,8 @@
     "synthetic": "tsx scripts/make-synthetic-clip.ts",
     "fit": "tsx scripts/fit-take.ts",
     "results": "tsx scripts/results-table.ts",
-    "whatif": "tsx scripts/whatif-table.ts"
+    "whatif": "tsx scripts/whatif-table.ts",
+    "presets": "tsx scripts/make-presets.ts"
   },
   "dependencies": {
     "@dimforge/rapier2d-compat": "^0.21.0",

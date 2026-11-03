@@ -4,6 +4,7 @@ import { whatIfFromApi } from '../api/client';
 import { whatIfFlowMachine, type WhatIfFlowEvent, type WhatIfFlowState } from '../machines/whatIfFlow';
 import type { PathEvent } from '../predict/events';
 import { MAX_RAMP_ANGLE_DEG, type WhatIfEdit } from '../scene/whatIfEdit';
+import { fetchPresetTracks, PRESETS, type Preset } from '../presets/presets';
 import { DEFAULT_SIM_PARAMS, type SimParams } from '../sim/params';
 import { describeEdit, rampAngleDeg } from '../whatif/applyEdit';
 import { compareWhatIf, counterfactualFrom, type CounterfactualTake, type EventComparison } from '../whatif/compare';
@@ -128,6 +129,26 @@ export function WhatIfPanel({ data, params, clockZeroSec, untilSec, onOverlay }:
   }, [shownRun, counterfactual, clockZeroSec, onOverlay]);
   useEffect(() => () => onOverlay(null), [onOverlay]);
 
+  function setCounterfactualFrom(take: string, tracks: { sceneJson: string; samText: string }, fps: number, synthetic = false) {
+    try {
+      const cfData = loadOverlayData({ ...tracks, fps, params: DEFAULT_SIM_PARAMS });
+      setCounterfactual({ ...counterfactualFrom(data, take, cfData), ...(synthetic ? { synthetic } : {}) });
+      setCfError(null);
+    } catch (err) {
+      setCounterfactual(null);
+      setCfError(message(err));
+    }
+  }
+
+  async function loadPresetCounterfactual(preset: Preset) {
+    try {
+      setCounterfactualFrom(`${preset.take} (${preset.title})`, await fetchPresetTracks(preset), preset.fps, preset.source === 'synthetic');
+    } catch (err) {
+      setCounterfactual(null);
+      setCfError(message(err));
+    }
+  }
+
   async function loadCounterfactual(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -137,20 +158,8 @@ export function WhatIfPanel({ data, params, clockZeroSec, untilSec, onOverlay }:
       setCfError('Pick the take’s scene.json and sam-raw.txt.');
       return;
     }
-    try {
-      const take = String(form.get('cfName') ?? '').trim() || 'counterfactual';
-      const cfData = loadOverlayData({
-        sceneJson: await sceneFile.text(),
-        samText: await samFile.text(),
-        fps: Number(form.get('cfFps')) || data.fps,
-        params: DEFAULT_SIM_PARAMS,
-      });
-      setCounterfactual(counterfactualFrom(data, take, cfData));
-      setCfError(null);
-    } catch (err) {
-      setCounterfactual(null);
-      setCfError(message(err));
-    }
+    const take = String(form.get('cfName') ?? '').trim() || 'counterfactual';
+    setCounterfactualFrom(take, { sceneJson: await sceneFile.text(), samText: await samFile.text() }, Number(form.get('cfFps')) || data.fps);
   }
 
   const comparison = shownRun && counterfactual ? compareWhatIf(shownRun.edited, counterfactual, data.calibration.pixelsPerCm) : null;
@@ -265,6 +274,14 @@ export function WhatIfPanel({ data, params, clockZeroSec, untilSec, onOverlay }:
           A take filmed with the change made for real (B steeper, C block removed, D both), same camera. Its tracks are read only here, to
           score the amber run.
         </span>
+        <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {PRESETS.filter((p) => p.set !== 'A').map((p) => (
+            <button key={p.id} type="button" onClick={() => void loadPresetCounterfactual(p)}>
+              Preset {p.set}: {p.title}
+              {p.source === 'synthetic' ? ' (synthetic)' : ''}
+            </button>
+          ))}
+        </span>
         <label>
           Name <input type="text" name="cfName" placeholder="B01" style={{ width: 80 }} />
         </label>
@@ -288,8 +305,8 @@ export function WhatIfPanel({ data, params, clockZeroSec, untilSec, onOverlay }:
       {comparison && counterfactual && shownRun && (
         <div>
           <p>
-            Amber run against the real take <strong>{comparison.take}</strong>, each from its own release. Real ramp{' '}
-            {comparison.rampAngleDeg.real.toFixed(1)}° (Muse Spark on its frame 0) against {comparison.rampAngleDeg.asked.toFixed(1)}° asked.
+            Amber run against the {counterfactual.synthetic ? 'synthetic (not filmed)' : 'real'} take <strong>{comparison.take}</strong>, each from its own release. Real ramp{' '}
+            {comparison.rampAngleDeg.real.toFixed(1)}° ({counterfactual.synthetic ? 'from its scene file' : 'Muse Spark on its frame 0'}) against {comparison.rampAngleDeg.asked.toFixed(1)}° asked.
           </p>
           {Math.abs(comparison.rampAngleDeg.real - comparison.rampAngleDeg.asked) > ANGLE_MISMATCH_DEG && (
             <p style={{ color: RED }}>The real take’s ramp is not at the angle asked: this compares two different setups.</p>

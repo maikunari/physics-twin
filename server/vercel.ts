@@ -1,5 +1,5 @@
-import { envFrom, type RouteName } from './api';
-import { createApi, type ApiHandler } from './index';
+import { envFrom, type RouteName } from './api.js';
+import { createApi, type ApiHandler } from './index.js';
 
 let handlers: Readonly<Record<RouteName, ApiHandler>> | null = null;
 

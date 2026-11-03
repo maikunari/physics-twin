@@ -1,11 +1,11 @@
 import { buildObjectPrompt, parseVideoStream } from '@meta-sam/parser';
 import { z } from 'zod';
-import { outputText, sparkRequestSchema, sparkResponseSchema } from '../src/agent/sparkWire';
-import { GROUNDING_PROMPT, groundingTextFormat } from '../src/scene/groundingPrompt';
-import { groundedSceneSchema, hasUsableScale } from '../src/scene/schema';
-import { readWhatIfReply, whatIfAskSchema, whatIfSparkRequest } from '../src/whatif/textEdit';
-import { trackRequestSchema, sceneRequestSchema, SAM_MODEL, SPARK_MODEL } from '../src/api/contract';
-import { json, postResponses, upstreamError, type Route } from './api';
+import { outputText, sparkRequestSchema, sparkResponseSchema } from '../src/agent/sparkWire.js';
+import { GROUNDING_PROMPT, groundingTextFormat } from '../src/scene/groundingPrompt.js';
+import { groundedSceneSchema, hasUsableScale } from '../src/scene/schema.js';
+import { readWhatIfReply, whatIfAskSchema, whatIfSparkRequest } from '../src/whatif/textEdit.js';
+import { trackRequestSchema, sceneRequestSchema, SAM_MODEL, SPARK_MODEL } from '../src/api/contract.js';
+import { json, postResponses, upstreamError, type Route } from './api.js';
 
 const MB = 1024 * 1024;
 

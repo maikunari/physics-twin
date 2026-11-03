@@ -35,6 +35,8 @@ export interface CounterfactualTake {
   readonly blockIds: readonly string[];
   /** How far this take's table origin and ramp foot sit from the baseline's on the image, px (worst of the two). */
   readonly cameraShiftPx: number;
+  /** A synthetic preset: drawn from the simulation, never filmed, so never called real. */
+  readonly synthetic?: boolean;
 }
 
 /**
