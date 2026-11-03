@@ -7,7 +7,7 @@ import OpenAI from 'openai';
 export const META_BASE_URL = 'https://api.meta.ai/v1';
 /** Overrides the base URL, only for pointing the scripts at a local mock server. */
 const BASE_URL_OVERRIDE = process.env.META_API_BASE_URL?.trim();
-export const SAM_MODEL = 'sam-3.1';
+export { SAM_MODEL } from '../../src/api/contract';
 export const SPARK_MODEL = 'muse-spark-1.3';
 
 /** Where smoke runs write their raw output and summaries; git-ignored. */

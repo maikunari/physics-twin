@@ -44,7 +44,7 @@ describe('fit worker protocol', () => {
     let calls = 0;
     const down: SparkTransport = async () => {
       calls++;
-      throw new Error('/api/spark answered 503');
+      throw new Error('/api/agent answered 503');
     };
     const messages: FitWorkerMessage[] = [];
     await handleFitRequest(fitRequestFor({ world: take.world, points, initial, useAgent: true }), (m) => messages.push(m), down);

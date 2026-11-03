@@ -15,7 +15,7 @@ export function setOf(take: string): string {
   return m?.[1]?.toUpperCase() ?? '-';
 }
 
-const num = (v: number | null | undefined, digits: number) => (v === null || v === undefined || !Number.isFinite(v) ? '' : v.toFixed(digits));
+export const num = (v: number | null | undefined, digits: number) => (v === null || v === undefined || !Number.isFinite(v) ? '' : v.toFixed(digits));
 const yesNo = (v: boolean | null) => (v === null ? '' : v ? 'yes' : 'no');
 
 type Column = readonly [header: string, cell: (row: ResultRow) => string];
@@ -57,7 +57,7 @@ export const COLUMNS: readonly Column[] = [
   ['traj_rms_px', ok((run) => num(run.outcome.trajectory.rmsPx, 1))],
 ];
 
-const csvCell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+export const csvCell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 
 export function toCsv(rows: readonly ResultRow[]): string {
   const lines = [COLUMNS.map(([h]) => h).join(','), ...rows.map((row) => COLUMNS.map(([, cell]) => csvCell(cell(row))).join(','))];
@@ -113,7 +113,7 @@ export function summarise(rows: readonly ResultRow[]): SetSummary[] {
 }
 
 const mdCell = (v: string) => v.replace(/\|/g, '\\|').replace(/\n/g, ' ');
-const mdTable = (headers: readonly string[], rows: readonly (readonly string[])[]) =>
+export const mdTable = (headers: readonly string[], rows: readonly (readonly string[])[]) =>
   [`| ${headers.map(mdCell).join(' | ')} |`, `|${headers.map(() => ' --- ').join('|')}|`, ...rows.map((r) => `| ${r.map(mdCell).join(' | ')} |`)].join('\n');
 
 /**

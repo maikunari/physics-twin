@@ -164,12 +164,12 @@ describe('fetchTransport', () => {
       sent = { url, body: JSON.parse(String(init.body)) };
       return new Response(JSON.stringify({ output: [] }), { status: 200 });
     }) as typeof fetch;
-    await expect(fetchTransport('/api/spark', fake)(request)).resolves.toEqual({ output: [] });
-    expect(sent).toEqual({ url: '/api/spark', body: request });
+    await expect(fetchTransport('/api/agent', fake)(request)).resolves.toEqual({ output: [] });
+    expect(sent).toEqual({ url: '/api/agent', body: request });
   });
 
   it('throws on an error status, with the reason', async () => {
     const fake = (async () => new Response('MODEL_API_KEY is not set', { status: 503 })) as typeof fetch;
-    await expect(fetchTransport('/api/spark', fake)(request)).rejects.toThrow(/503: MODEL_API_KEY is not set/);
+    await expect(fetchTransport('/api/agent', fake)(request)).rejects.toThrow(/503: MODEL_API_KEY is not set/);
   });
 });

@@ -8,7 +8,7 @@ import { handleFitRequest, type FitRequest, type FitWorkerMessage } from './fitW
  * new worker per fit and terminates it to cancel.
  */
 const scope = self as unknown as DedicatedWorkerGlobalScope;
-const transport = fetchTransport(new URL('/api/spark', scope.location.origin).href);
+const transport = fetchTransport(new URL('/api/agent', scope.location.origin).href);
 
 scope.onmessage = (event: MessageEvent<FitRequest>) => {
   void handleFitRequest(event.data, (message: FitWorkerMessage) => scope.postMessage(message), transport);

@@ -3,7 +3,7 @@ import {
   type SegmentationDiagnostic,
   type SegmentationRecord,
 } from '@meta-sam/parser';
-import type { PixelBox } from '../scene/calibration';
+import { ballPixelBox, gridBoxToPixelBox, type ImageSize, type PixelBox } from '../scene/calibration';
 import type { GroundedScene } from '../scene/schema';
 
 /** An object SAM was prompted with; its `id` is the object id SAM reports back. */
@@ -70,4 +70,9 @@ export function formatSamFrameLine(
     );
   });
   return `<${frame}f>${tokens.join(',')}\n`;
+}
+
+/** Frame-0 box prompts for SAM, in displayed pixels: the ball (object 1) from its grounded centre and radius, then each block. */
+export function samPromptObjects(scene: GroundedScene, size: ImageSize): { readonly id: string; readonly box: PixelBox }[] {
+  return [{ id: '1', box: ballPixelBox(scene, size) }, ...scene.blocks.map((b, i) => ({ id: String(i + 2), box: gridBoxToPixelBox(b.box, size) }))];
 }
