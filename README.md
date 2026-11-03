@@ -4,6 +4,10 @@ Film one second of a ball rolling down a ramp. Physics Twin turns the clip into 
 
 Narrow on purpose: a 2D, side-on, rigid-body tabletop scene, with an error number every time.
 
+## Demo video
+
+**Video: link to come** (3:00). Every scene in it is **synthetic**: drawn from the simulation with known parameters, not filmed, and labelled that way on screen. The SAM 3.1 and Muse Spark calls in it are live calls, made on Nov 3 on those synthetic scenes ([docs/live-calls.md](docs/live-calls.md)).
+
 ## Built during the event
 
 Everything in this repository was built during the Meta Global AI Developer Hackathon, **Oct 27 – Nov 4, 2026**: the first commit is Oct 27, 22:05 JST, and each day's work is one pull request (Day 1 to Day 6). Nothing was forked or copied from another repository; the libraries used are the npm packages in `package.json`.
@@ -94,12 +98,14 @@ What-if against counterfactual takes (day 5; [docs/whatif.md](docs/whatif.md)), 
 
 The miss on preset B and the 21 mm RMS on what-if B have the same cause, listed under limits.
 
+Live Meta API runs on preset A's synthetic clip (day 7, [docs/live-calls.md](docs/live-calls.md)): with the live Muse Spark fitting agent, the prediction landed inside the band, 0.20 cm / 2.3 px off. With the live Muse Spark scene and a live SAM 3.1 track as well, it landed **outside**, 1.10 cm / 12.7 px off, because Spark read the ramp about 4 cm off (27.0° against 29.4°).
+
 ## Limits
 
 - **2D, side-on camera, rigid objects**, 1–5 of them (ball, ramp, blocks, table), and two tape marks a known distance apart in the ball's plane. No 3D, no live camera, nothing soft.
 - **The first second fixes μ ramp and bounce, not table friction.** μ table and rolling damping are held at 0.3 and 0.2, and the 12-run band spreads only μ ramp and e. A long roll on the table (preset B, after the block hit) can end outside the band; the page says so in red.
 - Rapier has no rolling resistance, so rolling loss is a damping term.
-- **No call to the live Meta Model API has been verified yet.** The SAM 3.1 and Muse Spark requests follow Meta's docs and have run end to end against a local mock only ([docs/smoke.md](docs/smoke.md)). The presets and everything after loading a clip work without the API.
+- **The live Meta Model API has run only on synthetic clips** (day 7, about 82 calls, [docs/live-calls.md](docs/live-calls.md)). All four routes work. On a flat-shapes frame Muse Spark put the ramp ends about 4 cm off, and SAM 3.1 prompted from Spark's ball box tracked the ramp; prompted with a box on the ball, it held the ball on every frame. How either does on real footage is untested. The presets and everything after loading a clip work without the API.
 - The deployed site takes uploads of at most 4.5 MB (Vercel's request limit), so the 240 fps originals cannot be tracked there; the presets need no upload. The dev server takes up to 50 MB.
 - The thin server's cache and limits live in memory, per warm instance: they stop a loop or a curious visitor from spending credits, not a determined one. The kill switch turns every route off.
 
@@ -128,7 +134,7 @@ The repo deploys as is: `vercel.json` builds the Vite site to `dist/` and the fo
 
 ## Docs
 
-Day by day: [smoke](docs/smoke.md) (day 1), [overlay](docs/overlay.md) (day 2), [fit](docs/fit.md) (day 3), [predict](docs/predict.md) (day 4), [what-if](docs/whatif.md) and [server](docs/server.md) (day 5), [presets](docs/presets.md) (day 6).
+Day by day: [smoke](docs/smoke.md) (day 1), [overlay](docs/overlay.md) (day 2), [fit](docs/fit.md) (day 3), [predict](docs/predict.md) (day 4), [what-if](docs/whatif.md) and [server](docs/server.md) (day 5), [presets](docs/presets.md) (day 6), [live calls](docs/live-calls.md) (day 7).
 
 ## License
 
