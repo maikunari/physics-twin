@@ -66,11 +66,11 @@ export type FunctionCall = z.infer<typeof functionCallSchema>;
 export type SparkTransport = (request: SparkRequest) => Promise<unknown>;
 
 /**
- * The browser's transport: posts to the app's own `/api/spark`, which adds
- * the API key server-side (the Vite dev server in `vite.config.ts` for now),
+ * The browser's transport: posts to the app's own `/api/agent`, which adds
+ * the API key server-side (`server/`: on the Vite dev server or as a Vercel function),
  * so the key never reaches the page.
  */
-export function fetchTransport(url = '/api/spark', fetchImpl: typeof fetch = fetch): SparkTransport {
+export function fetchTransport(url = '/api/agent', fetchImpl: typeof fetch = fetch): SparkTransport {
   return async (request) => {
     const res = await fetchImpl(url, {
       method: 'POST',

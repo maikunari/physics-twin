@@ -18,7 +18,7 @@ import { fitRequestForOverlay, loadOverlayData } from '../src/overlay/overlayDat
 import { DEFAULT_SIM_PARAMS } from '../src/sim/params';
 import { initRapier } from '../src/sim/sceneWorld';
 import { META_BASE_URL, ensureOutDir, fail, parseArgs } from './lib/meta';
-import { scriptSparkTransport } from './lib/sparkProxy';
+import { scriptSparkTransport } from './lib/agentTransport';
 
 async function main() {
   const { positional, flags } = parseArgs(process.argv.slice(2), ['no-agent']);

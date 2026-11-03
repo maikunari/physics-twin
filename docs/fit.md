@@ -30,7 +30,7 @@ The fit window is cut before anything reaches the worker, again inside it, and t
 
 ## The agent's API key
 
-The browser never holds the key. On `npm run dev`, `/api/spark` (in `vite.config.ts`) forwards only the agent's own request shape to the Meta Model API with `MODEL_API_KEY` from the shell or a git-ignored `.env.local`. Without a key it answers 503 and the fit runs numeric-only, which the log says. The deployed `/api/agent` replaces it on day 5.
+The browser never holds the key. The fit worker posts each agent turn to `/api/agent` (the thin server, [server.md](server.md)), which forwards only the agent's own request shape to the Meta Model API with `MODEL_API_KEY` from the server's environment (the shell or a git-ignored `.env.local` on `npm run dev`). Without a key it answers 503 and the fit runs numeric-only, which the log says.
 
 From the terminal, the same loop:
 

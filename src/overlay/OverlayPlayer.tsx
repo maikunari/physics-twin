@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { drawOverlay, type MaskCache, type PredictOverlay } from './drawOverlay';
+import { drawOverlay, type MaskCache, type PredictOverlay, type WhatIfOverlay } from './drawOverlay';
 import type { OverlayData } from './overlayData';
 
 interface Props {
@@ -7,6 +7,8 @@ interface Props {
   readonly data: OverlayData;
   /** The predict step: while not revealed the clip is held at the freeze. */
   readonly predict?: PredictOverlay | null;
+  /** The what-if's amber run, drawn over the same clip. */
+  readonly whatIf?: WhatIfOverlay | null;
   /** Called with the media time of every frame drawn. */
   readonly onTime?: (t: number) => void;
 }
@@ -21,7 +23,7 @@ const RATES = [1, 0.25, 0.1] as const;
  * scrubbed too. Once a prediction is committed the clip is held at the
  * freeze until the reveal, which plays on from there.
  */
-export function OverlayPlayer({ videoUrl, data, predict = null, onTime }: Props) {
+export function OverlayPlayer({ videoUrl, data, predict = null, whatIf = null, onTime }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [sizeWarning, setSizeWarning] = useState<string | null>(null);
@@ -73,7 +75,7 @@ export function OverlayPlayer({ videoUrl, data, predict = null, onTime }: Props)
     const paint = (t: number) => {
       // Never draw past the freeze while the clip is held, even for the one frame before the pause lands.
       const shown = holdAtSec === null ? t : Math.min(t, holdAtSec);
-      drawOverlay(ctx, data, shown, cache, predict);
+      drawOverlay(ctx, data, shown, cache, predict, whatIf);
       onTimeRef.current?.(shown);
     };
 
@@ -116,7 +118,7 @@ export function OverlayPlayer({ videoUrl, data, predict = null, onTime }: Props)
       video.removeEventListener('ended', onEnded);
       video.removeEventListener('loadedmetadata', onMetadata);
     };
-  }, [data, width, height, predict, holdAtSec]);
+  }, [data, width, height, predict, whatIf, holdAtSec]);
 
   useEffect(() => {
     if (videoRef.current) videoRef.current.playbackRate = rate;

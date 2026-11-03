@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useReducer, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
+import { createActor } from 'xstate';
+import { sceneFromApi, trackFromApi } from '../api/client';
+import { clipIntakeMachine, type ClipIntakeState } from '../machines/clipIntake';
+import { samPromptObjects } from '../tracks/samText';
 import { muRampRollingThreshold } from '../fit/fitter';
 import type { FitWorkerMessage } from '../fit/fitWorkerProtocol';
 import { DEFAULT_WINDOW_END_SEC } from '../fit/recover';
@@ -11,12 +15,14 @@ import { DEFAULT_FPS } from '../tracks/trajectories';
 import { commitPrediction } from '../predict/commitment';
 import { makePrediction } from '../predict/prediction';
 import { scoreReveal, type RevealOutcome } from '../predict/reveal';
-import type { PredictOverlay } from './drawOverlay';
-import { ballTrajectory, fitRequestForOverlay, loadOverlayData, predictionInputs, withParams, type OverlayData } from './overlayData';
+import type { PredictOverlay, WhatIfOverlay } from './drawOverlay';
+import { ballTrajectory, fitRequestForOverlay, loadOverlayData, predictionInputs, sceneFileSchema, withParams, type OverlayData } from './overlayData';
 import { initialOverlayPageState, overlayPageReducer, type FitReport } from './overlayPageState';
 import { OverlayPlayer } from './OverlayPlayer';
 import { PredictPanel } from './PredictPanel';
+import { fileToDataUrl, readClip } from './readClip';
 import { usePredictFlow } from './usePredictFlow';
+import { WhatIfPanel } from './WhatIfPanel';
 
 const EDITABLE: readonly { key: 'muRamp' | 'muTable' | 'restitution'; label: string }[] = [
   { key: 'muRamp', label: 'μ ramp' },
@@ -109,6 +115,49 @@ function Summary({ data }: { data: OverlayData }) {
   );
 }
 
+/** The page's clip-intake actor (a clip with no tracks, through `/api/scene` and `/api/track`), with its state as React state. */
+function useClipIntake() {
+  const [actor] = useState(() => createActor(clipIntakeMachine).start());
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const subscription = actor.subscribe(onChange);
+      return () => subscription.unsubscribe();
+    },
+    [actor],
+  );
+  const snapshot = useSyncExternalStore(subscribe, () => actor.getSnapshot());
+  return { actor, snapshot };
+}
+
+const INTAKE_STATUS: Partial<Record<ClipIntakeState, string>> = {
+  readingScene: 'Muse Spark is reading frame 0 into the scene…',
+  tracking: 'SAM 3.1 is tracking the clip (a minute or so)…',
+};
+
+function download(name: string, text: string, type: string) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+/** Saves what the API made, so a tracked clip need not be tracked (and paid for) again. */
+function IntakeDownloads({ sceneJson, samText, take }: { sceneJson: string; samText: string; take: string }) {
+  return (
+    <p>
+      Tracked through the API. Keep the results:{' '}
+      <button type="button" onClick={() => download(`${take}-scene.json`, sceneJson, 'application/json')}>
+        scene.json
+      </button>{' '}
+      <button type="button" onClick={() => download(`${take}-sam-raw.txt`, samText, 'text/plain')}>
+        sam-raw.txt
+      </button>
+    </p>
+  );
+}
+
 /**
  * Day-2 overlay page: plays a local clip with SAM masks, the measured ball
  * trail and the simulated ball drawn over it. Takes the files the smoke
@@ -123,6 +172,9 @@ export function OverlayPage() {
   const [take, setTake] = useState('take');
   const predict = usePredictFlow();
   const [pendingOutcome, setPendingOutcome] = useState<RevealOutcome | null>(null);
+  const [whatIfOverlay, setWhatIfOverlay] = useState<WhatIfOverlay | null>(null);
+  const intake = useClipIntake();
+  const intakeState = intake.snapshot.value as ClipIntakeState;
   const fitReport = state.status === 'ready' ? state.fit : null;
   const predictState = predict.snapshot.value;
   const { prediction, commitment, outcome } = predict.snapshot.context;
@@ -183,26 +235,62 @@ export function OverlayPage() {
     return () => worker.terminate();
   }, [fittingData, useAgent]);
 
+  /** A clip without tracks: Muse Spark grounds frame 0, SAM 3.1 tracks from its boxes, then it loads like picked files. */
+  async function trackWithApi(clip: File, markerDistanceCm: number | undefined): Promise<{ sceneJson: string; samText: string }> {
+    const { actor } = intake;
+    actor.send({ type: 'RESET' });
+    const info = await readClip(clip);
+    actor.send({ type: 'PICK', clip: { mimeType: clip.type || 'video/quicktime', durationSec: info.durationSec, sizeBytes: clip.size } });
+    const size = { width: info.width, height: info.height };
+    if (actor.getSnapshot().matches('readingScene')) {
+      try {
+        const file = await sceneFromApi({ image: info.frame0, imageSize: size, ...(markerDistanceCm ? { markerDistanceCm } : {}) });
+        actor.send({ type: 'SCENE_READY', sceneJson: JSON.stringify(file, null, 2) });
+      } catch (err) {
+        actor.send({ type: 'SCENE_FAILED', error: message(err) });
+      }
+    }
+    const sceneJson = actor.getSnapshot().context.sceneJson;
+    if (actor.getSnapshot().matches('tracking') && sceneJson) {
+      try {
+        const scene = sceneFileSchema.parse(JSON.parse(sceneJson)).scene;
+        // A file the browser could not type is sent as a MOV, which is what the filming guide's iPhone records.
+        const video = (await fileToDataUrl(clip)).replace(/^data:[^;]*;/, `data:${clip.type || 'video/quicktime'};`);
+        const tracked = await trackFromApi({ video, size, objects: samPromptObjects(scene, size) });
+        actor.send({ type: 'TRACKS_READY', samText: tracked.rawOutput });
+      } catch (err) {
+        actor.send({ type: 'TRACK_FAILED', error: message(err) });
+      }
+    }
+    const done = actor.getSnapshot();
+    if (!done.matches('done') || !done.context.sceneJson || !done.context.samText) throw new Error(done.context.error ?? 'tracking through the API failed');
+    return { sceneJson: done.context.sceneJson, samText: done.context.samText };
+  }
+
   async function onLoad(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const clip = form.get('clip');
     const sceneFile = form.get('scene');
     const samFile = form.get('sam');
-    if (!(clip instanceof File) || !(sceneFile instanceof File) || !(samFile instanceof File) || !clip.size) {
+    const hasTracks = sceneFile instanceof File && sceneFile.size > 0 && samFile instanceof File && samFile.size > 0;
+    if (!(clip instanceof File) || !clip.size) {
       dispatch({ type: 'LOAD' });
-      dispatch({ type: 'FAILED', message: 'Pick a clip, its scene.json and its sam-raw.txt.' });
+      dispatch({ type: 'FAILED', message: 'Pick a clip, and its scene.json and sam-raw.txt if it has been tracked.' });
       return;
     }
     const fps = Number(form.get('fps')) || DEFAULT_FPS;
     const markerRaw = String(form.get('marker') ?? '').trim();
     const markerDistanceCm = markerRaw ? Number(markerRaw) : undefined;
     dispatch({ type: 'LOAD' });
+    if (hasTracks) intake.actor.send({ type: 'RESET' });
     try {
       await initRapier();
+      const tracks = hasTracks
+        ? { sceneJson: await sceneFile.text(), samText: await samFile.text() }
+        : await trackWithApi(clip, markerDistanceCm);
       const data = loadOverlayData({
-        sceneJson: await sceneFile.text(),
-        samText: await samFile.text(),
+        ...tracks,
         fps,
         params,
         ...(markerDistanceCm ? { markerDistanceCm } : {}),
@@ -294,6 +382,10 @@ export function OverlayPage() {
         <label>
           sam-raw.txt <input type="file" name="sam" accept=".txt,text/plain" />
         </label>
+        <small>
+          Without scene.json and sam-raw.txt the clip (at most 5 s) goes through the thin server: Muse Spark reads frame 0, SAM 3.1
+          tracks from its boxes. That needs MODEL_API_KEY on the server.
+        </small>
         <label>
           Frame rate <input type="number" name="fps" defaultValue={DEFAULT_FPS} min={1} step="any" style={{ width: 80 }} /> fps
         </label>
@@ -306,7 +398,10 @@ export function OverlayPage() {
         </button>
       </form>
 
-      {state.status === 'loading' && <p>Loading…</p>}
+      {state.status === 'loading' && <p>{INTAKE_STATUS[intakeState] ?? 'Loading…'}</p>}
+      {intakeState === 'done' && intake.snapshot.context.sceneJson && intake.snapshot.context.samText && state.status !== 'loading' && (
+        <IntakeDownloads sceneJson={intake.snapshot.context.sceneJson} samText={intake.snapshot.context.samText} take={take} />
+      )}
       {state.status === 'error' && <p role="alert">{state.message}</p>}
       {(state.status === 'ready' || state.status === 'fitting') && (
         <>
@@ -358,7 +453,24 @@ export function OverlayPage() {
               send={predict.send}
             />
           )}
-          <OverlayPlayer videoUrl={state.videoUrl} data={state.data} predict={predictOverlay} onTime={onTime} />
+          {state.status === 'ready' && state.fit && predictState === 'result' && commitment && (
+            // AppFlow result → whatIf (spec §6.1): one what-if panel per committed prediction.
+            <WhatIfPanel
+              key={commitment.hash}
+              data={state.data}
+              params={state.fit.best.params}
+              clockZeroSec={state.data.releaseSec}
+              untilSec={state.data.clipEndSec - state.data.releaseSec}
+              onOverlay={setWhatIfOverlay}
+            />
+          )}
+          <OverlayPlayer
+            videoUrl={state.videoUrl}
+            data={state.data}
+            predict={predictOverlay}
+            whatIf={predictState === 'result' ? whatIfOverlay : null}
+            onTime={onTime}
+          />
         </>
       )}
     </section>

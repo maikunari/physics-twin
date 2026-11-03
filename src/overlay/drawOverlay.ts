@@ -2,6 +2,9 @@ import { decodeMaskToRaster, type SegmentationMaskRecord } from '@meta-sam/parse
 import type { Prediction } from '../predict/prediction';
 import type { RevealOutcome } from '../predict/reveal';
 import { worldToPixel, type Vec2 } from '../scene/calibration';
+import { describeEdit } from '../whatif/applyEdit';
+import type { CounterfactualPoint } from '../whatif/compare';
+import type { WhatIfRun } from '../whatif/run';
 import { frameAtTime, ghostAt, trailUntil, type OverlayData } from './overlayData';
 
 const COLOURS = {
@@ -18,7 +21,20 @@ const COLOURS = {
   predicted: '#22d3ee',
   inside: '#4ade80',
   outside: '#f87171',
+  /** The what-if: the edited scene and the ball's new future. */
+  whatIf: '#f59e0b',
+  whatIfFaint: 'rgba(245, 158, 11, 0.35)',
+  /** A real take filmed with the change made for real. */
+  counterfactual: '#a3e635',
 } as const;
+
+/** What the what-if step adds to the overlay: the amber run, and the real counterfactual take if one is loaded. */
+export interface WhatIfOverlay {
+  /** Clip time of the run's t = 0: the release as the fit placed it. */
+  readonly clockZeroSec: number;
+  readonly run: WhatIfRun;
+  readonly counterfactual: { readonly take: string; readonly points: readonly CounterfactualPoint[] } | null;
+}
 
 /** What the predict step adds to the overlay: the committed prediction, and once revealed, how it did. */
 export interface PredictOverlay {
@@ -159,6 +175,58 @@ function drawPrediction(ctx: CanvasRenderingContext2D, data: OverlayData, t: num
 }
 
 /**
+ * The what-if, in amber: the edited ramp, the blocks taken out (crossed),
+ * the whole new path faintly and the ball on it at clip time `t`, and where
+ * it lands. A real counterfactual take is drawn green, on its own release.
+ */
+function drawWhatIf(ctx: CanvasRenderingContext2D, data: OverlayData, t: number, whatIf: WhatIfOverlay, unit: number) {
+  const cal = data.calibration;
+  const px = (p: Vec2) => worldToPixel(cal, p);
+  const { edited } = whatIf.run;
+  const simT = t - whatIf.clockZeroSec;
+
+  ctx.strokeStyle = COLOURS.whatIf;
+  ctx.lineWidth = 3 * unit;
+  polyline(ctx, [px(edited.world.ramp.top), px(edited.world.ramp.bottom)]);
+  const kept = new Set(edited.world.blocks.map((b) => b.id));
+  ctx.lineWidth = 2 * unit;
+  for (const block of data.world.blocks) {
+    if (kept.has(block.id)) continue;
+    const a = px({ x: block.center.x - block.halfExtents.x, y: block.center.y + block.halfExtents.y });
+    const b = px({ x: block.center.x + block.halfExtents.x, y: block.center.y - block.halfExtents.y });
+    ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y);
+    polyline(ctx, [a, b]);
+    polyline(ctx, [{ x: a.x, y: b.y }, { x: b.x, y: a.y }]);
+  }
+
+  ctx.lineWidth = 1.5 * unit;
+  ctx.strokeStyle = COLOURS.whatIfFaint;
+  polyline(ctx, edited.path.map(px));
+  const upTo = edited.path.filter((p) => p.t <= Math.max(0, simT));
+  ctx.strokeStyle = COLOURS.whatIf;
+  polyline(ctx, upTo.map(px));
+  const now = upTo.at(-1) ?? edited.path[0];
+  if (now) marker(ctx, px(now), data.world.ball.radius * cal.pixelsPerCm, COLOURS.whatIf, 2 * unit);
+  if (edited.landing) marker(ctx, px(edited.landing), 4 * unit, COLOURS.whatIf, 2 * unit);
+
+  if (whatIf.counterfactual) {
+    ctx.strokeStyle = COLOURS.counterfactual;
+    ctx.setLineDash([2 * unit, 2 * unit]);
+    ctx.lineWidth = 1.5 * unit;
+    polyline(
+      ctx,
+      whatIf.counterfactual.points.filter((p) => p.t <= simT).map((p) => p.px),
+    );
+    ctx.setLineDash([]);
+  }
+
+  ctx.font = `${10 * unit}px system-ui, sans-serif`;
+  const landing = edited.landing ? `lands x ${edited.landing.x.toFixed(1)} cm at ${edited.landing.t.toFixed(3)} s` : 'no landing';
+  label(ctx, `WHAT-IF: ${describeEdit(whatIf.run.edit, data.world)} · ${landing}`, 8 * unit, 94 * unit, COLOURS.whatIf, unit);
+  if (whatIf.counterfactual) label(ctx, `REAL ${whatIf.counterfactual.take} (filmed with the change)`, 8 * unit, 110 * unit, COLOURS.counterfactual, unit);
+}
+
+/**
  * Draws one frame of the overlay at media time `t`, in source pixels (the
  * canvas is the clip's size and scaled with the video): SAM masks for the
  * frame on screen, the measured ball trail so far, the simulated ball with
@@ -170,6 +238,7 @@ export function drawOverlay(
   t: number,
   cache: MaskCache,
   predict: PredictOverlay | null = null,
+  whatIf: WhatIfOverlay | null = null,
 ): void {
   const { width, height } = data.calibration.imageSize;
   const unit = height / 540;
@@ -218,4 +287,5 @@ export function drawOverlay(
   ctx.fillText(`t ${t.toFixed(3)} s · frame ${frame}`, 8 * unit, 16 * unit);
   if (ghost.path.length > ghost.fittedPoints) ctx.fillText('past the fit window: simulated, not fitted', 8 * unit, 30 * unit);
   if (predict) drawPrediction(ctx, data, t, predict, unit);
+  if (whatIf) drawWhatIf(ctx, data, t, whatIf, unit);
 }
