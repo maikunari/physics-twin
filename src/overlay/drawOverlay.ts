@@ -33,7 +33,7 @@ export interface WhatIfOverlay {
   /** Clip time of the run's t = 0: the release as the fit placed it. */
   readonly clockZeroSec: number;
   readonly run: WhatIfRun;
-  readonly counterfactual: { readonly take: string; readonly points: readonly CounterfactualPoint[] } | null;
+  readonly counterfactual: { readonly take: string; readonly points: readonly CounterfactualPoint[]; readonly synthetic?: boolean } | null;
 }
 
 /** What the predict step adds to the overlay: the committed prediction, and once revealed, how it did. */
@@ -223,7 +223,10 @@ function drawWhatIf(ctx: CanvasRenderingContext2D, data: OverlayData, t: number,
   ctx.font = `${10 * unit}px system-ui, sans-serif`;
   const landing = edited.landing ? `lands x ${edited.landing.x.toFixed(1)} cm at ${edited.landing.t.toFixed(3)} s` : 'no landing';
   label(ctx, `WHAT-IF: ${describeEdit(whatIf.run.edit, data.world)} · ${landing}`, 8 * unit, 94 * unit, COLOURS.whatIf, unit);
-  if (whatIf.counterfactual) label(ctx, `REAL ${whatIf.counterfactual.take} (filmed with the change)`, 8 * unit, 110 * unit, COLOURS.counterfactual, unit);
+  if (whatIf.counterfactual) {
+    const { take, synthetic } = whatIf.counterfactual;
+    label(ctx, synthetic ? `SYNTHETIC ${take} (with the change, not filmed)` : `REAL ${take} (filmed with the change)`, 8 * unit, 110 * unit, COLOURS.counterfactual, unit);
+  }
 }
 
 /**

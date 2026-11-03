@@ -11,6 +11,7 @@ import { describeShift, type FitLogEntry } from '../fit/session';
 import { rollRadians } from '../scene/calibration';
 import { DEFAULT_SIM_PARAMS, type SimParams } from '../sim/params';
 import { initRapier } from '../sim/sceneWorld';
+import { fetchPresetTracks, PRESETS, presetLabel, presetUrl, type Preset } from '../presets/presets';
 import { DEFAULT_FPS } from '../tracks/trajectories';
 import { commitPrediction } from '../predict/commitment';
 import { makePrediction } from '../predict/prediction';
@@ -158,6 +159,38 @@ function IntakeDownloads({ sceneJson, samText, take }: { sceneJson: string; samT
   );
 }
 
+/** The recorded presets: cached tracks and scene, so they run with the API off. */
+function PresetPicker({ disabled, onPick }: { disabled: boolean; onPick: (preset: Preset) => void }) {
+  return (
+    <div style={{ display: 'grid', gap: 6, marginBottom: 12 }}>
+      <strong>Presets (work with the API off)</strong>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {PRESETS.map((preset) => (
+          <button key={preset.id} type="button" disabled={disabled} onClick={() => onPick(preset)}>
+            {preset.set}: {preset.title}
+          </button>
+        ))}
+      </div>
+      {PRESETS.some((p) => p.source === 'synthetic') && (
+        <small>
+          A preset marked synthetic was drawn from the simulation with known parameters, not filmed; its tracks went through the same
+          parser, fit and prediction as a real take&apos;s.
+        </small>
+      )}
+    </div>
+  );
+}
+
+function PresetBadge({ preset }: { preset: Preset }) {
+  const synthetic = preset.source === 'synthetic';
+  return (
+    <p style={{ padding: '6px 10px', background: synthetic ? '#fef3c7' : '#e0f2fe', color: synthetic ? '#92400e' : '#075985' }}>
+      <strong>{preset.title}.</strong> {presetLabel(preset)}
+      {preset.truth && ` (true μ ramp ${preset.truth.muRamp}, e ${preset.truth.restitution}).`}
+    </p>
+  );
+}
+
 /**
  * Day-2 overlay page: plays a local clip with SAM masks, the measured ball
  * trail and the simulated ball drawn over it. Takes the files the smoke
@@ -170,6 +203,7 @@ export function OverlayPage() {
   const videoUrl = state.status === 'ready' || state.status === 'fitting' ? state.videoUrl : null;
   const urlRef = useRef<string | null>(null);
   const [take, setTake] = useState('take');
+  const [preset, setPreset] = useState<Preset | null>(null);
   const predict = usePredictFlow();
   const [pendingOutcome, setPendingOutcome] = useState<RevealOutcome | null>(null);
   const [whatIfOverlay, setWhatIfOverlay] = useState<WhatIfOverlay | null>(null);
@@ -185,14 +219,14 @@ export function OverlayPage() {
     sendPredict({ type: 'RESET' });
   }, [fitReport, sendPredict]);
 
-  // Free the previous clip's object URL whenever a new one replaces it, and on unmount.
+  // Free the previous clip's object URL (a preset's is a plain URL) whenever a new one replaces it, and on unmount.
   useEffect(() => {
     const previous = urlRef.current;
     urlRef.current = videoUrl;
-    if (previous && previous !== videoUrl) URL.revokeObjectURL(previous);
+    if (previous?.startsWith('blob:') && previous !== videoUrl) URL.revokeObjectURL(previous);
   }, [videoUrl]);
   useEffect(() => () => {
-    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    if (urlRef.current?.startsWith('blob:')) URL.revokeObjectURL(urlRef.current);
   }, []);
 
   // The fit runs in a Web Worker per fit; leaving `fitting` (or the page) terminates it.
@@ -296,7 +330,24 @@ export function OverlayPage() {
         ...(markerDistanceCm ? { markerDistanceCm } : {}),
       });
       setTake(clip.name.replace(/\.[^.]+$/, '') || 'take');
+      setPreset(null);
       dispatch({ type: 'LOADED', videoUrl: URL.createObjectURL(clip), data });
+    } catch (err) {
+      dispatch({ type: 'FAILED', message: message(err) });
+    }
+  }
+
+  /** A preset: its cached scene.json and sam-raw.txt stand in for the API, and its clip is served with the site. */
+  async function onPreset(picked: Preset) {
+    dispatch({ type: 'LOAD' });
+    intake.actor.send({ type: 'RESET' });
+    try {
+      await initRapier();
+      const tracks = await fetchPresetTracks(picked);
+      const data = loadOverlayData({ ...tracks, fps: picked.fps, params });
+      setTake(picked.take);
+      setPreset(picked);
+      dispatch({ type: 'LOADED', videoUrl: presetUrl(picked.clip), data });
     } catch (err) {
       dispatch({ type: 'FAILED', message: message(err) });
     }
@@ -372,6 +423,7 @@ export function OverlayPage() {
         simulated ball drawn on the video, white while inside the fit window and violet after it, where the fit has
         seen nothing.
       </p>
+      <PresetPicker disabled={state.status === 'loading' || state.status === 'fitting'} onPick={(p) => void onPreset(p)} />
       <form onSubmit={(e) => void onLoad(e)} style={{ display: 'grid', gap: 8, maxWidth: 520 }}>
         <label>
           Clip <input type="file" name="clip" accept="video/*" />
@@ -405,6 +457,7 @@ export function OverlayPage() {
       {state.status === 'error' && <p role="alert">{state.message}</p>}
       {(state.status === 'ready' || state.status === 'fitting') && (
         <>
+          {preset && <PresetBadge preset={preset} />}
           <Summary data={state.data} />
           <fieldset disabled={state.status === 'fitting'} style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             <legend>Simulation</legend>

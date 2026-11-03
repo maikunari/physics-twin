@@ -1,0 +1,48 @@
+{
+  "source": "synthetic",
+  "imageSize": {
+    "width": 1920,
+    "height": 1080
+  },
+  "markerDistanceCm": 50,
+  "scene": {
+    "ramp": {
+      "top": {
+        "x": 80,
+        "y": 360
+      },
+      "bottom": {
+        "x": 320,
+        "y": 600
+      }
+    },
+    "table": {
+      "left": {
+        "x": 40,
+        "y": 640
+      },
+      "right": {
+        "x": 960,
+        "y": 640
+      }
+    },
+    "blocks": [],
+    "ball": {
+      "center": {
+        "x": 105,
+        "y": 364
+      },
+      "radius": 10
+    },
+    "scaleMarkers": [
+      {
+        "x": 400,
+        "y": 660
+      },
+      {
+        "x": 700,
+        "y": 660
+      }
+    ]
+  }
+}

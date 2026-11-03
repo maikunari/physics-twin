@@ -1,4 +1,4 @@
-import { groundedSceneJsonSchema } from './schema';
+import { groundedSceneJsonSchema } from './schema.js';
 
 /**
  * Instruction for Muse Spark perception grounding on frame 0. Coordinates

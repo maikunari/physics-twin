@@ -1,4 +1,4 @@
-import { GRID_MAX, type GridBox, type GridPoint, type GroundedScene } from './schema';
+import { GRID_MAX, type GridBox, type GridPoint, type GroundedScene } from './schema.js';
 
 export interface ImageSize {
   readonly width: number;

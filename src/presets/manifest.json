@@ -1,0 +1,49 @@
+{
+  "presets": [
+    {
+      "id": "baseline",
+      "set": "A",
+      "title": "Baseline: ramp and blue block",
+      "source": "synthetic",
+      "take": "synthetic-A",
+      "fps": 240,
+      "clip": "baseline/clip.mp4",
+      "scene": "baseline/scene.json",
+      "sam": "baseline/sam-raw.txt",
+      "truth": {
+        "muRamp": 0.08,
+        "restitution": 0.55
+      }
+    },
+    {
+      "id": "steeper",
+      "set": "B",
+      "title": "Steeper ramp (38°)",
+      "source": "synthetic",
+      "take": "synthetic-B",
+      "fps": 240,
+      "clip": "steeper/clip.mp4",
+      "scene": "steeper/scene.json",
+      "sam": "steeper/sam-raw.txt",
+      "truth": {
+        "muRamp": 0.08,
+        "restitution": 0.55
+      }
+    },
+    {
+      "id": "no-block",
+      "set": "C",
+      "title": "Blue block removed",
+      "source": "synthetic",
+      "take": "synthetic-C",
+      "fps": 240,
+      "clip": "no-block/clip.mp4",
+      "scene": "no-block/scene.json",
+      "sam": "no-block/sam-raw.txt",
+      "truth": {
+        "muRamp": 0.08,
+        "restitution": 0.55
+      }
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # Day-2 overlay page
 
-`npm run dev` opens the overlay page. It plays a local clip and draws three things on top of it, in step with the video:
+`npm run dev` opens the overlay page. It plays a clip (one of the three presets, [presets.md](presets.md), or your own) and draws three things on top of it, in step with the video:
 
 | Drawn | Colour | From |
 |---|---|---|

@@ -1,6 +1,6 @@
-import { createRouteHandler, type ApiDeps, type ApiReply, type ApiRequest, type RouteName } from './api';
-import { DailyCap } from './limits';
-import { agentRoute, sceneRoute, trackRoute, whatIfRoute } from './routes';
+import { createRouteHandler, type ApiDeps, type ApiReply, type ApiRequest, type RouteName } from './api.js';
+import { DailyCap } from './limits.js';
+import { agentRoute, sceneRoute, trackRoute, whatIfRoute } from './routes.js';
 
 export type ApiHandler = (req: ApiRequest) => Promise<ApiReply>;
 
