@@ -44,7 +44,7 @@ export const sparkRequestSchema = z.strictObject({
   instructions: z.string(),
   input: z.array(inputItemSchema).min(1).max(64),
   tools: z.array(functionToolSchema).max(4),
-  tool_choice: z.literal('required'),
+  tool_choice: z.literal('auto'),
   parallel_tool_calls: z.literal(false),
 });
 export type SparkRequest = z.infer<typeof sparkRequestSchema>;

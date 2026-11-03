@@ -16,7 +16,7 @@ const AGENT_REQUEST = {
   instructions: 'fit',
   input: [{ type: 'message', role: 'user', content: 'turn 1' }],
   tools: AGENT_TOOLS,
-  tool_choice: 'required',
+  tool_choice: 'auto',
   parallel_tool_calls: false,
 };
 const IMAGE = `data:image/jpeg;base64,${Buffer.from('frame0').toString('base64')}`;
