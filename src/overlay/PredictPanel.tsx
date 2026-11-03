@@ -37,7 +37,7 @@ function OutcomeView({ outcome, verified }: { outcome: RevealOutcome; verified: 
     [
       `Event (${event.predicted.kind})`,
       event.real
-        ? `${cm(event.errorCm)} · ${event.errorPx?.toFixed(1)} px${event.errorMs === null ? '' : ` · ${event.errorMs.toFixed(1)} ms (real minus predicted)`}`
+        ? `${cm(event.errorCm)} · ${event.errorPx?.toFixed(1)} px${event.errorMs === null ? '' : ` · ${event.errorMs.toFixed(1)} ms (tracked minus predicted)`}`
         : 'did not happen before the horizon',
     ],
     ['Position at the horizon', end.real ? `${cm(end.errorCm)} · ${end.errorPx?.toFixed(1)} px` : 'ball not tracked there'],
@@ -49,7 +49,7 @@ function OutcomeView({ outcome, verified }: { outcome: RevealOutcome; verified: 
   return (
     <div>
       <p style={{ color: event.insideBand ? GREEN : RED, fontWeight: 600 }}>
-        {event.insideBand ? 'Reality landed inside the band.' : 'Reality landed OUTSIDE the band.'}
+        {event.insideBand ? 'The tracked ball landed inside the band.' : 'The tracked ball landed OUTSIDE the band.'}
       </p>
       <table style={{ borderCollapse: 'collapse', fontSize: 14 }}>
         <tbody>
@@ -121,12 +121,12 @@ export function PredictPanel({ state, prediction, commitment, outcome, error, on
       )}
       {state === 'committed' && (
         <button type="button" onClick={onReveal}>
-          Reveal: play the real footage past the freeze
+          Reveal: play the clip past the freeze
         </button>
       )}
       {state === 'revealing' && (
         <p>
-          Playing the footage past the freeze…{' '}
+          Playing the clip past the freeze…{' '}
           {outcome && (
             <button type="button" onClick={() => send({ type: 'REVEAL_DONE', outcome })}>
               Show the result now
