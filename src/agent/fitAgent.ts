@@ -114,7 +114,7 @@ Parameters (all required on every call):
 
 The world frame is in centimetres: x to the right along the table, y up from the table line. Segment errors: ramp (on the ramp), flight (in the air after leaving it), bounce (from the first touch until it stays down), roll (on the table). meanOffsetCm is simulated minus measured: x > 0 means the simulated ball is ahead of the real one, y > 0 means it is higher. A segment the ball did not reach inside the window is null.
 
-How to work: read the errors, form a hypothesis (for example "the simulated ball is behind on the ramp, so the ramp friction is too high" or "the bounce is too high, lower restitution"), test it with simulate (at most 3 calls per turn), then call propose. A numeric optimiser fine-tunes muRamp and restitution from your proposal, so aim for the right region rather than the last digit. Change parameters only for a reason you can state, and keep the note short and concrete.`;
+How to work: read the errors, form a hypothesis (for example "the simulated ball is behind on the ramp, so the ramp friction is too high" or "the bounce is too high, lower restitution"), test it with simulate (at most 3 calls per turn), then call propose. Always answer with a tool call, never with text alone. A numeric optimiser fine-tunes muRamp and restitution from your proposal, so aim for the right region rather than the last digit. Change parameters only for a reason you can state, and keep the note short and concrete.`;
 
 /** At most this many `simulate` calls per turn, then the agent must propose. */
 export const MAX_SIMULATE_CALLS = 3;
@@ -156,13 +156,15 @@ export function createFitAgent({ transport }: FitAgentOptions): Proposer {
   return async (context): Promise<Proposal> => {
     const input: InputItem[] = [{ type: 'message', role: 'user', content: turnPrompt(context) }];
     let simulateCalls = 0;
+    let lastText = '';
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const request: SparkRequest = {
         model: SPARK_AGENT_MODEL,
         instructions: AGENT_INSTRUCTIONS,
         input,
         tools: AGENT_TOOLS,
-        tool_choice: 'required',
+        // Muse Spark accepts only "auto" (a live call rejected "required"), so a text-only reply is nudged below.
+        tool_choice: 'auto',
         parallel_tool_calls: false,
       };
       const parsed = sparkResponseSchema.safeParse(await transport(request));
@@ -170,7 +172,12 @@ export function createFitAgent({ transport }: FitAgentOptions): Proposer {
       const calls = functionCalls(parsed.data);
       if (calls.length === 0) {
         const text = outputText(parsed.data).trim();
-        throw new Error(text ? `Muse Spark answered without a tool call: ${text.slice(0, 120)}` : 'Muse Spark answered nothing');
+        if (text) {
+          lastText = text;
+          input.push({ type: 'message', role: 'assistant', content: text });
+        }
+        input.push({ type: 'message', role: 'user', content: 'Answer with a tool call: simulate to test, or propose.' });
+        continue;
       }
 
       for (const call of calls) {
@@ -222,7 +229,7 @@ export function createFitAgent({ transport }: FitAgentOptions): Proposer {
         });
       }
     }
-    throw new Error(`no proposal after ${MAX_ROUNDS} model calls`);
+    throw new Error(`no proposal after ${MAX_ROUNDS} model calls${lastText ? `; last reply: ${lastText.slice(0, 120)}` : ''}`);
   };
 }
 

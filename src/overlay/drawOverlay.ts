@@ -154,7 +154,7 @@ function drawPrediction(ctx: CanvasRenderingContext2D, data: OverlayData, t: num
   );
   label(ctx, `commitment ${predict.commitmentShort}`, 8 * unit, 62 * unit, COLOURS.text, unit);
   if (!predict.revealed) {
-    label(ctx, `FROZEN at ${prediction.freezeSec.toFixed(3)} s after release: the footage past here has not been read`, 8 * unit, 78 * unit, COLOURS.band, unit);
+    label(ctx, `FROZEN at ${prediction.freezeSec.toFixed(3)} s after release: the clip past here has not been read`, 8 * unit, 78 * unit, COLOURS.band, unit);
     return;
   }
 

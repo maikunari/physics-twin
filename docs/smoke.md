@@ -69,13 +69,14 @@ These thresholds are a first guess. They get tuned once real takes are in.
 - Make sure the take really is 240 fps.
 - Prompt the ball on more than one frame. The script prompts frame 0 only today.
 
-## Not yet verified against a live call
+## Checked against live calls (Nov 3)
 
-The scripts follow Meta's docs (dev.meta.ai, read Oct 27 2026) and have been run end to end only against a local mock of the API. These points still need a real run:
+The first live runs were on a **synthetic** clip (preset A, drawn from the simulation; no real take exists yet). [live-calls.md](live-calls.md) has the full record. Against the points this section used to list:
 
-- **Spark structured output:** that `muse-spark-1.3` accepts `text.format` `json_schema` with `strict: true` on a schema this size, with numeric `minimum`/`maximum`, `minItems`/`maxItems`, and an image in the same request.
-- **Spark grounding grid:** that grounding replies on the 0–1000 grid when the format comes from our own schema rather than from Meta's grounding prompt formats.
-- **Spark image input:** that `input_image` works with a base64 data URL and no `detail` field.
-- **Files API upload:** that it accepts a `.mov` with `purpose: "user_data"`, and that the returned `file_id` works in `input_video`.
-- **SAM tracking:** that SAM 3.1 honours `metadata.include_confidence: "true"`, `propagation_direction: "forward"` and `mask_encoding: "one_bit"` together. Also that it tracks a small ball at speed on 240 fps footage, which is the real go/no-go.
-- **Costs:** prices per frame and per token. Check them on the dashboard after the run.
+- **Spark structured output:** works. `muse-spark-1.3` took `text.format` `json_schema` with `strict: true` on this schema, with the image in the same request, and the reply passed the zod schema.
+- **Spark grounding grid:** replies are on the 0–1000 grid. The block and table ends came back within 2 px; the ramp ends were 42–51 px (about 4 cm) off and the ball and tape marks 27 px, so the ramp read as 27.0° against a true 29.4°.
+- **Spark image input:** a base64 data URL with no `detail` field works.
+- **Files API upload:** accepted an `.mp4` with `purpose: "user_data"`, and the `file_id` worked in `input_video`. A `.mov` has not been tried.
+- **SAM tracking:** SAM 3.1 honoured `include_confidence`, `propagation_direction` and `mask_encoding` together: every record came back with a box, a one-bit mask and a confidence. Prompted with Spark's ball box, which sat half on the ramp, it held a piece of the ramp (NO-GO). Prompted with a box drawn on the ball (`--box`), it held the ball on all 649 frames at 240 fps, mean confidence 0.93 (GO). Whether it holds a real ball on real footage is still open.
+- **Fitting agent:** the first live call was rejected: Muse Spark accepts only `"auto"` for `tool_choice`. The agent now sends `"auto"` and asks again when a turn comes back as text only.
+- **Costs:** not checked yet; look on the dashboard.

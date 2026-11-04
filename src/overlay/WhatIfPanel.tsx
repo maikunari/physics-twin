@@ -269,10 +269,10 @@ export function WhatIfPanel({ data, params, clockZeroSec, untilSec, onOverlay }:
       )}
 
       <form onSubmit={(e) => void loadCounterfactual(e)} style={{ display: 'grid', gap: 6, maxWidth: 560, marginTop: 12 }}>
-        <strong>Real counterfactual take</strong>
+        <strong>Counterfactual take</strong>
         <span>
-          A take filmed with the change made for real (B steeper, C block removed, D both), same camera. Its tracks are read only here, to
-          score the amber run.
+          A take with the change made (B steeper, C block removed, D both), same camera: filmed, or a synthetic preset. Its tracks are read
+          only here, to score the amber run.
         </span>
         <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {PRESETS.filter((p) => p.set !== 'A').map((p) => (
@@ -294,7 +294,7 @@ export function WhatIfPanel({ data, params, clockZeroSec, untilSec, onOverlay }:
         <label>
           Frame rate <input type="number" name="cfFps" defaultValue={data.fps} min={1} step="any" style={{ width: 80 }} /> fps
         </label>
-        <button type="submit">Load the real take</button>
+        <button type="submit">Load the take</button>
       </form>
       {cfError && (
         <p role="alert" style={{ color: RED }}>
@@ -305,13 +305,13 @@ export function WhatIfPanel({ data, params, clockZeroSec, untilSec, onOverlay }:
       {comparison && counterfactual && shownRun && (
         <div>
           <p>
-            Amber run against the {counterfactual.synthetic ? 'synthetic (not filmed)' : 'real'} take <strong>{comparison.take}</strong>, each from its own release. Real ramp{' '}
+            Amber run against the {counterfactual.synthetic ? 'synthetic (not filmed)' : 'real'} take <strong>{comparison.take}</strong>, each from its own release. Its ramp{' '}
             {comparison.rampAngleDeg.real.toFixed(1)}° ({counterfactual.synthetic ? 'from its scene file' : 'Muse Spark on its frame 0'}) against {comparison.rampAngleDeg.asked.toFixed(1)}° asked.
           </p>
           {Math.abs(comparison.rampAngleDeg.real - comparison.rampAngleDeg.asked) > ANGLE_MISMATCH_DEG && (
-            <p style={{ color: RED }}>The real take’s ramp is not at the angle asked: this compares two different setups.</p>
+            <p style={{ color: RED }}>The counterfactual take’s ramp is not at the angle asked: this compares two different setups.</p>
           )}
-          {removedKept.length > 0 && <p style={{ color: RED }}>The real take still has {removedKept.join(', ')}, which the what-if removed.</p>}
+          {removedKept.length > 0 && <p style={{ color: RED }}>The counterfactual take still has {removedKept.join(', ')}, which the what-if removed.</p>}
           {comparison.cameraMoved && (
             <p style={{ color: RED }}>
               Its table and ramp foot sit {comparison.cameraShiftPx.toFixed(1)} px from this take’s: the camera or the table probably moved.
@@ -320,7 +320,7 @@ export function WhatIfPanel({ data, params, clockZeroSec, untilSec, onOverlay }:
           <table style={{ borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
               <tr>
-                {['', 'What-if', 'Real', 'Error'].map((h) => (
+                {['', 'What-if', counterfactual.synthetic ? 'Synthetic take' : 'Real take', 'Error'].map((h) => (
                   <th key={h} style={{ textAlign: 'left', paddingRight: 16 }}>
                     {h}
                   </th>

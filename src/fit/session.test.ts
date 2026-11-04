@@ -100,7 +100,7 @@ describe('synthetic ground truth through the fit loop', () => {
     expect(result.log).toContainEqual({ kind: 'error', text: 'Agent failed (Meta Model API timed out); continuing with Nelder–Mead alone.' });
   }, 30_000);
 
-  it('a reply that is not a tool call counts as an agent failure', async () => {
+  it('a model that only ever answers in text counts as an agent failure', async () => {
     const truth = syntheticTruth(0.08, 0.55);
     const { problem } = syntheticFitCase(truth, 1);
     const chatty: SparkTransport = async () => ({
@@ -108,7 +108,7 @@ describe('synthetic ground truth through the fit loop', () => {
     });
     const result = await runFitSession(problem, { ...truth, ...START }, { agent: createFitAgent({ transport: chatty }) });
     expect(result.loop.mode).toBe('numericOnly');
-    expect(result.log.find((l) => l.kind === 'error')?.text).toMatch(/answered without a tool call: I think e is about 0.5/);
+    expect(result.log.find((l) => l.kind === 'error')?.text).toMatch(/no proposal after \d+ model calls; last reply: I think e is about 0.5/);
   }, 30_000);
 
   it('stops at the iteration budget and keeps the best run', async () => {

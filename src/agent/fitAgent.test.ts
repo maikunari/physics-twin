@@ -141,10 +141,21 @@ describe('fitting agent turn', () => {
     await expect(createFitAgent({ transport: model.transport })(context)).rejects.toThrow(/no proposal after 5 model calls/);
   });
 
-  it('fails the turn on a reply that is not a Responses API reply, or has no tool call', async () => {
+  it('fails the turn on a reply that is not a Responses API reply', async () => {
     const { context } = contextStub();
     await expect(createFitAgent({ transport: async () => ({ error: 'quota' }) })(context)).rejects.toThrow(/not a Responses API reply/);
-    await expect(createFitAgent({ transport: scripted([{ text: '' }]).transport })(context)).rejects.toThrow(/answered nothing/);
+  });
+
+  it('asks again for a tool call after a text-only reply, and fails the turn if none comes', async () => {
+    const { context } = contextStub();
+    const script = scripted([{ text: 'Lowering the bounce.' }, { name: 'propose', args: { params: P, note: 'lower e' } }]);
+    await expect(createFitAgent({ transport: script.transport })(context)).resolves.toMatchObject({ note: 'lower e' });
+    expect(script.requests[1]?.input.slice(-2)).toEqual([
+      { type: 'message', role: 'assistant', content: 'Lowering the bounce.' },
+      { type: 'message', role: 'user', content: 'Answer with a tool call: simulate to test, or propose.' },
+    ]);
+    const silent = Array.from({ length: MAX_SIMULATE_CALLS + 2 }, () => ({ text: '' }));
+    await expect(createFitAgent({ transport: scripted(silent).transport })(context)).rejects.toThrow(/no proposal after/);
   });
 });
 
@@ -154,7 +165,7 @@ describe('fetchTransport', () => {
     instructions: 'i',
     input: [{ type: 'message', role: 'user', content: 'hi' }],
     tools: AGENT_TOOLS,
-    tool_choice: 'required',
+    tool_choice: 'auto',
     parallel_tool_calls: false,
   });
 
